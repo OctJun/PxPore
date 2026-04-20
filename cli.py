@@ -23,6 +23,7 @@ def build_parser():
 
     ap.add_argument("--no-surface", action="store_true", default=False, help="disable surface area analysis")
     ap.add_argument("--pore", action="store_true", default=False, help="enable pore analysis")
+    ap.add_argument("--porevis", action="store_true", default=False, help="enableing output visulization of pore")
 
     ap.add_argument("--no-octree", action="store_true", default=False)
     ap.add_argument("--oct-level", type=int, default=4, help="max octree levels")
@@ -31,7 +32,6 @@ def build_parser():
     ap.add_argument("--cube", action="store_true", default=False)
     ap.add_argument("--cube-space", type=float, default=None)
     ap.add_argument("--smooth", action="store_true", default=False)
-    ap.add_argument("--filter", action="store_true", default=False, help="filter the outer ponits")
     ap.add_argument("--stats", action="store_true", default=False)
 
     ap.add_argument("--debug", action="store_true", default=False, help="save intermediate arrays")
@@ -49,13 +49,13 @@ def namespace_to_config(args) -> AnalyseConfig:
         out_prefix=args.out_prefix,
         no_surface=args.no_surface,
         pore=args.pore,
+        porevis=args.porevis,
         no_octree=args.no_octree,
         oct_level=args.oct_level,
         oct_grid=args.oct_grid,
         cube=args.cube,
         cube_space=args.cube_space,
         smooth=args.smooth,
-        filter=args.filter,
         stats=args.stats,
         debug=args.debug,
         debug_print=args.debug_print,

@@ -13,7 +13,8 @@ class AnalyseConfig:
 
     no_surface: bool = False
     pore: bool = False
-
+    porevis: bool = False
+    
     no_octree: bool = False
     oct_level: int = 4
     oct_grid: float = 0.001
@@ -21,7 +22,7 @@ class AnalyseConfig:
     cube: bool = False
     cube_space: Optional[float] = None
     smooth: bool = False
-    filter: bool = False
+
     stats: bool = False
 
     debug: bool = False
