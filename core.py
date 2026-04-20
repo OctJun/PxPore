@@ -115,6 +115,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         if rad[i] > rmax:
             rmax = rad[i]
     cutoff = rmax + config.probe
+    if config.pore:
+        cutoff *= 2  # 乘2，减少后面dmin重算的压力
     cell_size = max(cutoff, config.grid)
     cell_list_obj = build_cell_list(pos, box, cell_size)
     timings["cell"] = time.perf_counter()
@@ -168,7 +170,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
     if config.pore:
         print("[INFO] Running pore analysis")
-        dmin2, nfill = dmin_by_all_atoms(pos, rad, box, config.probe, grid_info, dmin)
+        dmin2, nfill = dmin_by_all_atoms(pos, rad, box, config.probe,cell_size, grid_info, dmin)
         print(f"[PORE] Fill {nfill} voxels")
 
         print("[PORE] Calculating maximum balls")
@@ -218,7 +220,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         dmin_out = dmin2.astype(np.float32) if dmin2 is not None else dmin.astype(np.float32)
         pore_vis_out = None
 
-        if config.filter and config.pore:
+        if config.porevis and config.pore:
             pore_vis_out = filter_dmin_by_maxiaum_ball(dmin2, nodes_nm, r_nm, grid_info, box)
 
         if config.smooth:

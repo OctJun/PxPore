@@ -148,6 +148,7 @@ def dmin_by_all_atoms(
     rad_nm,       # float32/float64, (N,), nm
     box,          # float32/float64, (3,), nm
     probe_nm,     # float
+    cell_size,
     grid_info,    # (gx, gy, gz, dgx, dgy, dgz)
     dmin,         # float32/float64, (gx,gy,gz), in-place overwrite on fill_mask
 ):
@@ -164,13 +165,14 @@ def dmin_by_all_atoms(
     gx, gy, gz, dgx, dgy, dgz = grid_info
     natom = pos.shape[0]
     nfill = 0
+    safe_th = cell_size - (max(rad_nm) + probe_nm)
     for ix in prange(gx):
+        x = (ix + 0.5) * dgx
         for iy in range(gy):
+            y = (iy + 0.5) * dgy
             for iz in range(gz):
-                if dmin[ix, iy, iz] <=1e7:  #初始值应当是1e9-probe, 取一半证明是没被动过 
+                if dmin[ix, iy, iz] <= safe_th:  
                     continue
-                x = (ix + 0.5) * dgx
-                y = (iy + 0.5) * dgy
                 z = (iz + 0.5) * dgz
                 min_dist = 1e9
                 for j in range(natom):
