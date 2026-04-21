@@ -1,15 +1,18 @@
 
+import logging
 import numpy as np
 from numba import get_num_threads, get_thread_id, njit, prange
 
 from .geometry import pbc_delta
 
+logger = logging.getLogger('PxPore')
+
 
 OCC_SOLID = np.uint8(0 << 0)
-OCC_VOID  = np.uint8(1 << 0)   
+OCC_VOID = np.uint8(1 << 0)
 OCC_SPLIT = np.uint8(1 << 1)   # 2: node has children
-OCC_ACC   = np.uint8(1 << 2)   # 4: accessible
-OCC_TRAP  = np.uint8(1 << 3)   # 8: trapped
+OCC_ACC = np.uint8(1 << 2)   # 4: accessible
+OCC_TRAP = np.uint8(1 << 3)   # 8: trapped
 
 # FLAG_ACTIVE = np.uint8(1 << 0)
 # FLAG_ROOT   = np.uint8(1 << 1)
@@ -22,52 +25,53 @@ REFINE_INTERIOR_SHPERE = False
 
 _CHILD_SIGNS = np.array([
     [-1, -1, -1],
-    [ 1, -1, -1],
+    [1, -1, -1],
     [-1,  1, -1],
-    [ 1,  1, -1],
+    [1,  1, -1],
     [-1, -1,  1],
-    [ 1, -1,  1],
+    [1, -1,  1],
     [-1,  1,  1],
-    [ 1,  1,  1],
+    [1,  1,  1],
 ], dtype=np.float32)
 
 
 def alloc_soa(total_nodes: int):
-    x      = np.empty(total_nodes, np.float32) # center position
-    y      = np.empty(total_nodes, np.float32)
-    z      = np.empty(total_nodes, np.float32)
-    d      = np.empty(total_nodes, np.float32) # distance to surface
+    x = np.empty(total_nodes, np.float32)  # center position
+    y = np.empty(total_nodes, np.float32)
+    z = np.empty(total_nodes, np.float32)
+    d = np.empty(total_nodes, np.float32)  # distance to surface
 
     # nnid   = np.empty(total_nodes, np.int32)
     parent = np.empty(total_nodes, np.int32)
-    child  = np.empty(total_nodes, np.int32)
+    child = np.empty(total_nodes, np.int32)
 
-    level  = np.empty(total_nodes, np.uint8) # level (0-based)
-    occ    = np.empty(total_nodes, np.uint8) # occupancy status (OCC_VOID, OCC_SOLID, or OCC_SPLIT)
+    level = np.empty(total_nodes, np.uint8)  # level (0-based)
+    # occupancy status (OCC_VOID, OCC_SOLID, or OCC_SPLIT)
+    occ = np.empty(total_nodes, np.uint8)
+
+    return (x, y, z, d, parent, child, level, occ)
 
 
-    return (x,y,z,d,parent,child, level,occ)
-
-
-@njit(fastmath=True,cache=True)
-def eval_center(x, y, z, cand_atoms,pos,box,rad_nm,probe_nm):
+@njit(fastmath=True, cache=True)
+def eval_center(x, y, z, cand_atoms, pos, box, rad_nm, probe_nm):
     Lx, Ly, Lz = box
     min_dist = 1e9
     nnid = -1
     for j in cand_atoms:
-        if j==-1:
+        if j == -1:
             break
         dx = pbc_delta(x - pos[j, 0], Lx)
         dy = pbc_delta(y - pos[j, 1], Ly)
         dz = pbc_delta(z - pos[j, 2], Lz)
         dist_vdw = np.sqrt(dx*dx + dy*dy + dz*dz) - rad_nm[j]
         dist_probe = dist_vdw-probe_nm
-        if dist_probe<min_dist:
-            min_dist=dist_probe
-            nnid=j
+        if dist_probe < min_dist:
+            min_dist = dist_probe
+            nnid = j
 
     occ0 = OCC_VOID if min_dist > 0 else OCC_SOLID
     return min_dist, nnid, occ0
+
 
 @njit(cache=True)
 def need_refine(d, occ, level, half, min_half, max_level):
@@ -75,7 +79,7 @@ def need_refine(d, occ, level, half, min_half, max_level):
     #     d_sphere = half + 1e-6 # 内接球
     # else:
     # d_sphere = half * 1.73205080756  + 1e-6 #  外接球
-    d_sphere = half*1.4142136 + 1e-6 # 介于内接和外接之间的值
+    d_sphere = half*1.4142136 + 1e-6  # 介于内接和外接之间的值
 
     if level+1 >= max_level or half <= min_half:
         return False
@@ -102,7 +106,7 @@ def topN_insert(scores, ids, score_new, id_new):
     ids[k] = id_new
 
 
-@njit(parallel=True,cache=True)
+@njit(parallel=True, cache=True)
 def build_root_candidates_topN(
     N,
     root_cxzy,    # (n_roots,)
@@ -110,19 +114,21 @@ def build_root_candidates_topN(
     probe_nm,
     cell_list_obj
 ):
-    
-    root_cx, root_cy, root_cz = root_cxzy[:,0],root_cxzy[:,1],root_cxzy[:,2]
+
+    root_cx, root_cy, root_cz = root_cxzy[:,
+                                          0], root_cxzy[:, 1], root_cxzy[:, 2]
     n_roots = root_cx.shape[0]
     head, next_atom, nx, ny, nz = cell_list_obj
 
     cand_atoms = np.full((n_roots, N), -1, dtype=np.int32)
-    cand_score = np.full((n_roots, N), np.inf, dtype=np.float32)  # dist_vdw 的 topN
+    cand_score = np.full((n_roots, N), np.inf,
+                         dtype=np.float32)  # dist_vdw 的 topN
 
     Lx, Ly, Lz = box
 
     for r in prange(n_roots):
         x = root_cx[r]
-        y = root_cy[r] 
+        y = root_cy[r]
         z = root_cz[r]
         cx = int(x / Lx * nx) % nx
         cy = int(y / Ly * ny) % ny
@@ -131,11 +137,11 @@ def build_root_candidates_topN(
         scores = cand_score[r]
         ids = cand_atoms[r]
 
-        for dx_cell in (-1,0,1):
+        for dx_cell in (-1, 0, 1):
             ncx = (cx + dx_cell) % nx
-            for dy_cell in (-1,0,1):
+            for dy_cell in (-1, 0, 1):
                 ncy = (cy + dy_cell) % ny
-                for dz_cell in (-1,0,1):
+                for dz_cell in (-1, 0, 1):
                     ncz = (cz + dz_cell) % nz
                     c = (ncz * ny + ncy) * nx + ncx
                     j = head[c]
@@ -143,17 +149,18 @@ def build_root_candidates_topN(
                         dx = pbc_delta(x - pos[j, 0], Lx)
                         dy = pbc_delta(y - pos[j, 1], Ly)
                         dz = pbc_delta(z - pos[j, 2], Lz)
-                        
+
                         dist_vdw = np.sqrt(dx*dx + dy*dy + dz*dz) - rad_nm[j]
                         dist_probe = dist_vdw-probe_nm
 
-                        topN_insert(scores, ids, np.float32(dist_probe), np.int32(j))
+                        topN_insert(scores, ids, np.float32(
+                            dist_probe), np.int32(j))
                         j = next_atom[j]
 
     return cand_atoms, cand_score
 
 
-@njit(parallel=True,cache=True)
+@njit(parallel=True, cache=True)
 def pass1_count_nodes(
     root_cxyz, half_tables, cand_atom,
     max_level, min_half,
@@ -172,9 +179,12 @@ def pass1_count_nodes(
 
         top = 0
         # 压入根节点
-        cx = root_cx[r]; cy = root_cy[r]; cz = root_cz[r]
+        cx = root_cx[r]
+        cy = root_cy[r]
+        cz = root_cz[r]
         # half = root_half[r]
-        d0, _, occ0 = eval_center(cx, cy, cz, cand_atom[r], pos, box, rad_nm, probe_nm)
+        d0, _, occ0 = eval_center(
+            cx, cy, cz, cand_atom[r], pos, box, rad_nm, probe_nm)
 
         stack[top]['x'] = cx
         stack[top]['y'] = cy
@@ -191,14 +201,14 @@ def pass1_count_nodes(
         while top > 0:
             top -= 1
             # 从栈顶读取所有字段（一次性命中缓存行）
-            x    = stack[top]['x']
-            y    = stack[top]['y']
-            z    = stack[top]['z']
+            x = stack[top]['x']
+            y = stack[top]['y']
+            z = stack[top]['z']
             # half = stack[top]['half']
-            lv   = stack[top]['lv']
-            d    = stack[top]['d']
-            occ  = stack[top]['occ']
-            half = half_tables[lv] # (3)
+            lv = stack[top]['lv']
+            d = stack[top]['d']
+            occ = stack[top]['occ']
+            half = half_tables[lv]  # (3)
 
             if not need_refine(d, occ, lv, max(half), min_half, max_level):
                 continue
@@ -216,7 +226,8 @@ def pass1_count_nodes(
                 sy = y + _CHILD_SIGNS[i, 1] * child_half[1]
                 sz = z + _CHILD_SIGNS[i, 2] * child_half[2]
 
-                d2, _, occ2 = eval_center(sx, sy, sz, cand_atom[r], pos, box, rad_nm, probe_nm)
+                d2, _, occ2 = eval_center(
+                    sx, sy, sz, cand_atom[r], pos, box, rad_nm, probe_nm)
 
                 # 写入子节点（所有字段连续写入）
                 stack[top]['x'] = sx
@@ -234,6 +245,7 @@ def pass1_count_nodes(
             counts[r] = np.int32(1 + 8 * splits)
 
     return counts
+
 
 def prefix_sum_offsets(counts: np.ndarray):
     counts = np.asarray(counts, dtype=np.int64)
@@ -254,7 +266,7 @@ def prefix_sum_offsets(counts: np.ndarray):
     return offsets, total
 
 
-@njit(parallel=True,cache=True)
+@njit(parallel=True, cache=True)
 def pass2_build_forest(
     # SoA outputs (total_nodes,)
     oct_soa_tuple,
@@ -271,7 +283,7 @@ def pass2_build_forest(
     pos, rad_nm, box, probe_nm,
     err_flag
 ):
-    x,y,z,d,parent,child, level,occ = oct_soa_tuple
+    x, y, z, d, parent, child, level, occ = oct_soa_tuple
     n_roots = root_cxzy.shape[0]
     # err_flag = np.zeros(n_roots,dtype=np.int8)
     for r in prange(n_roots):
@@ -294,11 +306,12 @@ def pass2_build_forest(
         z[rid] = cz
         level[rid] = np.int8(0)
         parent[rid] = np.int32(-1)
-        child[rid]  = np.int32(-1)
-        
+        child[rid] = np.int32(-1)
+
         # flags[rid]  = np.uint8(FLAG_ACTIVE | FLAG_ROOT)
 
-        dd, nn, occ0 = eval_center(cx, cy, cz, cand_atom[r], pos, box, rad_nm, probe_nm)
+        dd, nn, occ0 = eval_center(
+            cx, cy, cz, cand_atom[r], pos, box, rad_nm, probe_nm)
         d[rid] = np.float32(dd)
         # nnid[rid] = np.int32(nn)
         occ[rid] = np.int8(occ0)
@@ -307,11 +320,11 @@ def pass2_build_forest(
         # stack for DFS: store node_id + half
         # capacity nmax is safe as long as pass1/pass2 decisions match
         # --------
-        st_nid  = np.empty(nmax, np.int32)
+        st_nid = np.empty(nmax, np.int32)
         # st_half = np.empty(nmax, np.float32)
         top = 0
 
-        st_nid[top]  = np.int32(rid)
+        st_nid[top] = np.int32(rid)
         # st_half[top] = np.float32(root_half[r])
         top += 1
 
@@ -323,7 +336,7 @@ def pass2_build_forest(
             lv = level[nid]
             dd = d[nid]
             oc = occ[nid]
-            half = half_tables[lv] # (3)
+            half = half_tables[lv]  # (3)
             # 是否继续细分（这里假设 need_refine 已包含 level/half 终止条件）
             if not need_refine(dd, oc, lv, max(half), min_half, max_level):
                 # 作为叶子：确保 child=-1（root 初始化就是 -1，但父节点 split 后孩子也会进来）
@@ -350,8 +363,8 @@ def pass2_build_forest(
                 cid = cbase + i
 
                 parent[cid] = np.int32(nid)
-                child[cid]  = np.int32(-1)
-                level[cid]  = next_lv
+                child[cid] = np.int32(-1)
+                level[cid] = next_lv
                 # flags[cid]  = np.uint8(FLAG_ACTIVE)
 
                 sx = px + _CHILD_SIGNS[i, 0] * child_half[0]
@@ -362,26 +375,26 @@ def pass2_build_forest(
                 y[cid] = sy
                 z[cid] = sz
 
-                dd2, nn2, occ2 = eval_center(sx, sy, sz, cand_atom[r], pos, box, rad_nm, probe_nm)
+                dd2, nn2, occ2 = eval_center(
+                    sx, sy, sz, cand_atom[r], pos, box, rad_nm, probe_nm)
                 d[cid] = np.float32(dd2)
                 # nnid[cid] = np.int32(nn2)
                 occ[cid] = np.int8(occ2)
 
                 # push child
-                st_nid[top]  = np.int32(cid)
+                st_nid[top] = np.int32(cid)
                 # st_half[top] = np.float32(child_half)
                 top += 1
-            if ptr>nmax:
+            if ptr > nmax:
                 err_flag[r] = 1
 
 
-
 def build_octree_forest(grid_mask, grid_info,
-                         max_level: int, min_size: float,
-                         pos,rad_nm,box,probe_nm,
-                         cell_list_obj):
+                        max_level: int, min_size: float,
+                        pos, rad_nm, box, probe_nm,
+                        cell_list_obj):
 
-    gx,gy,gz,dgx,dgy,dgz = grid_info 
+    gx, gy, gz, dgx, dgy, dgz = grid_info
     min_half_size = np.float32(min_size * 0.5)
     octree_mask = (grid_mask & 128) == 128
     octree_root_count = np.sum(octree_mask)
@@ -393,14 +406,14 @@ def build_octree_forest(grid_mask, grid_info,
         (iy + 0.5) * dgy,
         (iz + 0.5) * dgz,
     )).astype(np.float32)
-    half_tables = np.empty((16,3),dtype=np.float64)
+    half_tables = np.empty((16, 3), dtype=np.float64)
     half_tables[:, 0] = 0.5 * dgx / (2.0 ** np.arange(16, dtype=np.float32))
     half_tables[:, 1] = 0.5 * dgy / (2.0 ** np.arange(16, dtype=np.float32))
     half_tables[:, 2] = 0.5 * dgz / (2.0 ** np.arange(16, dtype=np.float32))
     # root_half_arr = np.full(root_centers_xyz.shape[0], np.array([dgx,dgy,dgz])*0.5, np.float32)
 
-    cand_atom,_ = build_root_candidates_topN(TOP_N_ATOM,root_centers_xyz,pos,rad_nm,box,probe_nm,cell_list_obj)
-
+    cand_atom, _ = build_root_candidates_topN(
+        TOP_N_ATOM, root_centers_xyz, pos, rad_nm, box, probe_nm, cell_list_obj)
 
     max_stack = 100000
     n_threads = get_num_threads()
@@ -409,62 +422,63 @@ def build_octree_forest(grid_mask, grid_info,
         ('y', np.float32),
         ('z', np.float32),
         ('d', np.float32),
-        ('lv', np.uint8), 
-        ('occ', np.uint8), 
+        ('lv', np.uint8),
+        ('occ', np.uint8),
     ])
     stack_buf = np.empty((n_threads, max_stack), dtype=stack_dtype)
-    print(f"[OCTREE] max level = {max_level}, min size = {min_half_size*2:.3f} nm, root = {octree_root_count}")
+    logger.info(
+        f"[OCTREE] max level = {max_level}, min size = {min_half_size*2:.3f} nm, root = {octree_root_count}")
 
-    counts = pass1_count_nodes(root_centers_xyz, half_tables,cand_atom, 
+    counts = pass1_count_nodes(root_centers_xyz, half_tables, cand_atom,
                                max_level, min_half_size,
                                stack_buf,
-                               pos,rad_nm,box,probe_nm
+                               pos, rad_nm, box, probe_nm
                                )
     offsets, total = prefix_sum_offsets(counts)
-    print(f"[OCTREE] total nodes = {total.sum()}")
+    logger.info(f"[OCTREE] total nodes = {total.sum()}")
     if total > np.iinfo(np.uint32).max:
-        raise ValueError(f"Too many octree nodes {total} vs {np.iinfo(np.uint32).max}, decrease --oct-level, increase --oct-grid or disable octree with --no-octree")
+        raise ValueError(
+            f"Too many octree nodes {total} vs {np.iinfo(np.uint32).max}, decrease --oct-level, increase --oct-grid or disable octree with --no-octree")
     if total == 0:
         return None, None, None
-    
+
     oct_soa_tuple = alloc_soa(total)
 
-    err_flag = np.zeros(total,dtype=np.int8)
+    err_flag = np.zeros(total, dtype=np.int8)
     pass2_build_forest(
         oct_soa_tuple,
-        root_centers_xyz, half_tables,cand_atom,
+        root_centers_xyz, half_tables, cand_atom,
         offsets, counts,
         max_level, min_half_size,
-        pos,rad_nm, box,  probe_nm,
+        pos, rad_nm, box,  probe_nm,
         err_flag
     )
     bad = np.where(err_flag != 0)[0]
     if bad.size:
         r = int(bad[0])
         raise ValueError(f"pass2 overflow at root {r}: nmax={counts[r]}")
-    
+
     return oct_soa_tuple, offsets, counts
 
 
-@njit(parallel=True, fastmath=True,cache=True)
-def octree_volume(oct_soa_tuple, offsets, counts,root_size):
-    x,y,z,d, nnid,parent,child, level,occ = oct_soa_tuple
+@njit(parallel=True, fastmath=True, cache=True)
+def octree_volume(oct_soa_tuple, offsets, counts, root_size):
+    x, y, z, d, nnid, parent, child, level, occ = oct_soa_tuple
     n = x.shape[0]
     node_volume = [(root_size/(2**l))**3 for l in range(16)]
 
     v_total = 0.0
-    v_occ   = 0.0
-    v_void  = 0.0
+    v_occ = 0.0
+    v_void = 0.0
     n_leafs = 0
     for i in prange(n):
         oc = occ[i]
         if oc != OCC_SPLIT:
-            n_leafs +=1
+            n_leafs += 1
             vv = node_volume[level[i]]
             v_total += vv
             if oc == OCC_SOLID:
                 v_occ += vv
             else:  # OCC_VOID
                 v_void += vv
-    return v_total, v_occ, v_void,n_leafs
-
+    return v_total, v_occ, v_void, n_leafs

@@ -1,13 +1,17 @@
-import datetime
+# Relative imports must be placed after setting the OMP_NUM_THREADS environment variable, otherwise the numba threading layer may not be set correctly.
+# DO NOT move these imports to the top of the file.
 import os
+os.environ["NUMBA_THREADING_LAYER"] = "omp"
+
+
+import datetime
+import logging
+
 import threading
 import time
 from dataclasses import asdict
 from typing import Any
-
 import numpy as np
-
-os.environ["NUMBA_THREADING_LAYER"] = "omp"
 
 from numba import set_num_threads, get_num_threads, threading_layer
 
@@ -25,8 +29,9 @@ from .pores import (
     pore_centerline_from_distance_field,
 )
 from .stats import get_stats_and_envs, save_stats
-from .connectivity_multicore import percolation_masks,LABEL_MASK_ACC, LABEL_MASK_TRAP
 from .geometry import GRID_MASK_PROBE, _tanh, build_cell_list, dmin_by_all_atoms, downsample, grid_masks
+from .connectivity_multicore import percolation_masks, LABEL_MASK_ACC, LABEL_MASK_TRAP
+logger = logging.getLogger('PxPore')
 
 
 def analyse(config: AnalyseConfig) -> dict[str, Any]:
@@ -34,13 +39,15 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     timings = {"t0": time.perf_counter()}
 
     # -------------------- threads --------------------
-    if config.threads > 0:
+    if config.threads and config.threads >= 1:
         set_num_threads(config.threads)
     else:
-        set_num_threads(max(1, get_num_threads() // 2))
+        set_num_threads(max(1, get_num_threads() // 2))  # 默认半数可用线程
 
-    print(f"[Numba] threading layer: {threading_layer()}, threads: {get_num_threads()}")
-    print(f"[Numba] affinity: {list(os.sched_getaffinity(0))[0]}, counts:{len(os.sched_getaffinity(0))}")
+    logger.info(
+        f"[Numba] threading layer: {threading_layer()}, threads: {get_num_threads()}")
+    logger.info(
+        f"[Numba] affinity: {list(os.sched_getaffinity(0))[0]}, counts:{len(os.sched_getaffinity(0))}")
 
     # -------------------- output prefix --------------------
     out_parent_path = os.path.abspath(os.path.dirname(config.input))
@@ -54,7 +61,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     if config.atoms is not None:
         n_update = load_atom_info(config.atoms, overwrite=True)
         if n_update > 0:
-            print(f"[ATOMS] loaded/updated {n_update} entries from: {config.atoms}")
+            logger.info(
+                f"[ATOMS] loaded/updated {n_update} entries from: {config.atoms}")
 
     timings["init"] = time.perf_counter()
 
@@ -67,7 +75,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
     box_inferred = False
     if box[0] <= 0 or box[1] <= 0 or box[2] <= 0:
-        print("[WARN] invalid box dimensions in input file, will be inferred from atomic positions and radii")
+        logger.warning(
+            "[WARN] invalid box dimensions in input file, will be inferred from atomic positions and radii")
         pad = 0.0
         min_x = np.min(pos[:, 0] - rad) - pad
         max_x = np.max(pos[:, 0] + rad) + pad
@@ -75,7 +84,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         max_y = np.max(pos[:, 1] + rad) + pad
         min_z = np.min(pos[:, 2] - rad) - pad
         max_z = np.max(pos[:, 2] + rad) + pad
-        box = np.array([max_x - min_x, max_y - min_y, max_z - min_z], dtype=np.float64)
+        box = np.array([max_x - min_x, max_y - min_y,
+                       max_z - min_z], dtype=np.float64)
 
         pos[:, 0] -= min_x
         pos[:, 1] -= min_y
@@ -106,8 +116,10 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             f"relative error = ({errx:.2%},{erry:.2%},{errz:.2%})"
         )
 
-    print(f"[Input] atoms={pos.shape[0]}, box(nm)={box}, grid_spacing={config.grid} nm, probe={config.probe} nm")
-    print(f"[INFO] grid=({gx},{gy},{gz}), voxel={gx * gy * gz:.2e} , Actual grid spacing: {dgx:.6f} {dgy:.6f} {dgz:.6f}")
+    logger.info(
+        f"[Input] atoms={pos.shape[0]}, box(nm)={box}, grid_spacing={config.grid} nm, probe={config.probe} nm")
+    logger.info(
+        f"[INFO] grid=({gx},{gy},{gz}), voxel={gx * gy * gz:.2e} , Actual grid spacing: {dgx:.6f} {dgy:.6f} {dgz:.6f}")
 
     # -------------------- cell list --------------------
     rmax = 0.0
@@ -122,13 +134,14 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     timings["cell"] = time.perf_counter()
 
     # -------------------- base masks --------------------
-    grid_mask, dmin = grid_masks(pos, rad, box, config.probe, grid_info, cell_list_obj)
+    grid_mask, dmin = grid_masks(
+        pos, rad, box, config.probe, grid_info, cell_list_obj)
     void = ((grid_mask & GRID_MASK_PROBE) == GRID_MASK_PROBE).astype(np.uint8)
     timings["grid"] = time.perf_counter()
 
     # -------------------- octree --------------------
     if not config.no_octree:
-        print("[INFO] octree enabled")
+        logger.info("[INFO] octree enabled")
         oct_soa_tuple, _, _ = build_octree_forest(
             grid_mask, grid_info,
             config.oct_level, config.oct_grid,
@@ -136,14 +149,15 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             cell_list_obj,
         )
     else:
-        print("[INFO] octree disabled")
+        logger.info("[INFO] octree disabled")
         oct_soa_tuple = None
     timings["octree"] = time.perf_counter()
 
     # -------------------- volume analysis --------------------
-    print("[INFO] Running volume analysis")
+    logger.info("[INFO] Running volume analysis")
     if oct_soa_tuple:
-        label_mask, uf_parent = percolation_masks_with_octree(void, grid_mask, grid_info, oct_soa_tuple)
+        label_mask, uf_parent = percolation_masks_with_octree(
+            void, grid_mask, grid_info, oct_soa_tuple)
     else:
         label_mask, uf_parent = percolation_masks(void)
 
@@ -154,7 +168,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     # -------------------- surface analysis --------------------
     surface_area = None
     if not config.no_surface:
-        print("[INFO] Running surface area analysis")
+        logger.info("[INFO] Running surface area analysis")
         surface_area = fibonacci_sphere_surface_area(
             pos, rad, box, config.probe, grid_info,
             grid_mask, label_mask, cell_list_obj, oct_soa_tuple,
@@ -169,11 +183,12 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     pore_data = None
 
     if config.pore:
-        print("[INFO] Running pore analysis")
-        dmin2, nfill = dmin_by_all_atoms(pos, rad, box, config.probe,cell_size, grid_info, dmin)
-        print(f"[PORE] Fill {nfill} voxels")
+        logger.info("[INFO] Running pore analysis")
+        dmin2, nfill = dmin_by_all_atoms(
+            pos, rad, box, config.probe, cell_size, grid_info, dmin)
+        logger.info(f"[PORE] Fill {nfill} voxels")
 
-        print("[PORE] Calculating maximum balls")
+        logger.info("[PORE] Calculating maximum balls")
         nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
             D_nm=dmin2,
             acc_u8=acc,
@@ -188,12 +203,15 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             workers=-1,
         )
 
-        print("[PORE] Calculating PLD")
-        pld, _, _ = pld_lcd_by_bisection_from_dmin(dmin, config.grid, config.probe)
+        logger.info("[PORE] Calculating PLD")
+        pld, _, _ = pld_lcd_by_bisection_from_dmin(
+            dmin, config.grid, config.probe)
         lcd = 2 * r_nm.max()
 
-        psd_data, center_data = get_psd_from_centerline(nodes_nm, r_nm, bin_size=0.01)
-        print(f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
+        psd_data, center_data = get_psd_from_centerline(
+            nodes_nm, r_nm, bin_size=0.01)
+        logger.info(
+            f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
         pore_data = (pld, lcd)
 
         if config.stats:
@@ -208,20 +226,24 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
     # -------------------- cube output --------------------
     if config.cube:
-        cube_space = max(0.05, config.grid) if config.cube_space is None else config.cube_space
+        cube_space = max(
+            0.05, config.grid) if config.cube_space is None else config.cube_space
         k = max(1, int(round(cube_space / config.grid)))
         smooth_str = "smooth" if config.smooth else "pristine"
 
-        print(f"[Output] space: {cube_space} nm, downsample factor: {k}, prefix: {out_prefix}")
+        logger.info(
+            f"[Output] space: {cube_space} nm, downsample factor: {k}, prefix: {out_prefix}")
 
         void_out = void.astype(np.float32)
         acc_out = acc.astype(np.float32)
         trap_out = trap.astype(np.float32)
-        dmin_out = dmin2.astype(np.float32) if dmin2 is not None else dmin.astype(np.float32)
+        dmin_out = dmin2.astype(
+            np.float32) if dmin2 is not None else dmin.astype(np.float32)
         pore_vis_out = None
 
         if config.porevis and config.pore:
-            pore_vis_out = filter_dmin_by_maxiaum_ball(dmin2, nodes_nm, r_nm, grid_info, box)
+            pore_vis_out = filter_dmin_by_maxiaum_ball(
+                dmin2, nodes_nm, r_nm, grid_info, box)
 
         if config.smooth:
             sm = _tanh(dmin, config.grid)
@@ -240,17 +262,20 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
         tasks = [
             (out_void, downsample(void_out, k), box, cube_space, pos, atoms_Z),
-            (out_occ, downsample((1.0 - void_out).astype(np.float32), k), box, cube_space, pos, atoms_Z),
+            (out_occ, downsample((1.0 - void_out).astype(np.float32), k),
+             box, cube_space, pos, atoms_Z),
             (out_acc, downsample(acc_out, k), box, cube_space, pos, atoms_Z),
             (out_trap, downsample(trap_out, k), box, cube_space, pos, atoms_Z),
             (out_dmin, downsample(dmin_out, k), box, cube_space, pos, atoms_Z),
         ]
         if pore_vis_out is not None:
-            tasks.append((out_pore_vis, downsample(pore_vis_out, k), box, cube_space, pos, atoms_Z))
+            tasks.append((out_pore_vis, downsample(
+                pore_vis_out, k), box, cube_space, pos, atoms_Z))
 
         threads = []
         for task_args in tasks:
-            t = threading.Thread(target=write_cube, args=task_args, daemon=False)
+            t = threading.Thread(
+                target=write_cube, args=task_args, daemon=False)
             t.start()
             threads.append(t)
         for t in threads:
@@ -259,7 +284,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     timings["cube"] = time.perf_counter()
 
     # -------------------- stats output --------------------
-    print("[STATS]")
+    logger.info("[STATS]")
     settings = {
         "atom_info_updates": int(n_update),
         "box_inferred": bool(box_inferred),
@@ -272,11 +297,12 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     timings["stats"] = time.perf_counter()
 
     for k, v in stats["stats"].items():
-        print(f"{k:18s}: {v:>12.6f}")
+        logger.info(f"{k:18s}: {v:>12.6f}")
 
     if config.stats:
         stats["run_envs"]["time"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
-        stats["run_envs"]["execution_time"] = (datetime.datetime.now() - start_time).total_seconds()
+        stats["run_envs"]["execution_time"] = (
+            datetime.datetime.now() - start_time).total_seconds()
 
         tkeys = list(timings.keys())
         timings_delta = {}
@@ -318,7 +344,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             np.save(f"{out_parent_path}/{out_prefix}_pore_keep_idx.npy", keep_idx)
 
     elapsed = (datetime.datetime.now() - start_time).total_seconds()
-    print(f"[INFO] Finish in {elapsed:.2f} seconds")
+    logger.info(f"[INFO] Finish in {elapsed:.2f} seconds")
 
     return {
         "stats": stats,
