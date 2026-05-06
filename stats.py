@@ -35,7 +35,7 @@ def get_stats_and_envs(
         "threads_requested": int(args.threads),
         "threads_used": int(get_num_threads()),
         "threading_layer": threading_layer(),
-        "sched_affinity_count": int(len(os.sched_getaffinity(0))),
+        "sched_affinity_count": int(len(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else -1),
         "surface_enabled": bool(not args.no_surface),
         "pore_enabled": bool(args.pore),
         "octree_enabled": bool(not args.no_octree),

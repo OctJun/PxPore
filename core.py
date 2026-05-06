@@ -46,8 +46,11 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
     logger.info(
         f"[Numba] threading layer: {threading_layer()}, threads: {get_num_threads()}")
-    logger.info(
-        f"[Numba] affinity: {list(os.sched_getaffinity(0))[0]}, counts:{len(os.sched_getaffinity(0))}")
+    if hasattr(os, "sched_getaffinity"):
+        affinity = list(os.sched_getaffinity(0))
+        logger.info(f"[Numba] affinity: {affinity[0]}, counts:{len(affinity)}")
+    else:
+        logger.info("[Numba] affinity: unavailable on this platform")
 
     # -------------------- output prefix --------------------
     out_parent_path = os.path.abspath(os.path.dirname(config.input))
@@ -189,6 +192,10 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         logger.info(f"[PORE] Fill {nfill} voxels")
 
         logger.info("[PORE] Calculating maximum balls")
+
+        # prune = True if np.sum(acc) / (gx * gy * gz) < 0.5 else False 
+        prune = True
+
         nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
             D_nm=dmin2,
             acc_u8=acc,
@@ -196,7 +203,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             box=box,
             rmin_center_nm=0.005,
             strict_plateau=True,
-            prune=True,
+            prune=prune,
             k=12,
             alpha=1.2,
             max_dist_nm=None,
@@ -226,9 +233,9 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
     # -------------------- cube output --------------------
     if config.cube:
-        cube_space = max(
-            0.05, config.grid) if config.cube_space is None else config.cube_space
-        k = max(1, int(round(cube_space / config.grid)))
+        target_space = max(0.05, config.grid) if config.cube_space is None else config.cube_space
+        k = max(1, int(round(target_space / config.grid)))
+        cube_space = k * config.grid
         smooth_str = "smooth" if config.smooth else "pristine"
 
         logger.info(
@@ -262,8 +269,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
 
         tasks = [
             (out_void, downsample(void_out, k), box, cube_space, pos, atoms_Z),
-            (out_occ, downsample((1.0 - void_out).astype(np.float32), k),
-             box, cube_space, pos, atoms_Z),
+            (out_occ, downsample((1.0 - void_out).astype(np.float32), k), box, cube_space, pos, atoms_Z),
             (out_acc, downsample(acc_out, k), box, cube_space, pos, atoms_Z),
             (out_trap, downsample(trap_out, k), box, cube_space, pos, atoms_Z),
             (out_dmin, downsample(dmin_out, k), box, cube_space, pos, atoms_Z),
