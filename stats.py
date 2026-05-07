@@ -140,6 +140,7 @@ def get_stats_and_envs(
 
         "PLD_nm": pore_data[0] if pore_data else -1,
         "LCD_nm": pore_data[1] if pore_data else -1,
+        "LCD_global_nm": pore_data[2] if pore_data else -1,
     }
 
     return {

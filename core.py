@@ -209,25 +209,43 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             max_dist_nm=None,
             workers=-1,
         )
-
+        logger.info(
+            f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
         logger.info("[PORE] Calculating PLD")
         pld, _, _ = pld_lcd_by_bisection_from_dmin(
             dmin, config.grid, config.probe)
         lcd = 2 * r_nm.max()
-
+        lcd_global = 2 * np.max(dmin)
+        logger.info("[PORE] Calculating PSD")
         psd_data, center_data = get_psd_from_centerline(
-            nodes_nm, r_nm, bin_size=0.01)
-        logger.info(
-            f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
-        pore_data = (pld, lcd)
+            nodes_nm, r_nm, bin_size=config.grid)
+
+        pore_data = (pld, lcd, lcd_global)
 
         if config.stats:
             out_psd = f"{out_parent_path}/{out_prefix}_psd.txt"
             out_center = f"{out_parent_path}/{out_prefix}_center.txt"
             np.savetxt(out_psd, psd_data, fmt=["%d", "%.6f", "%d", "%.10e", "%.10e"],
                        header="N diameters_nm count volume cumulative", delimiter="\t", comments="#")
-            np.savetxt(out_center, center_data, fmt=["%d", "%.6f", "%.6f", "%.6f", "%.6f"],
-                       header="N X_nm Y_nm Z_nm diameters_nm", delimiter="\t", comments="#")
+            center_xyz = np.column_stack((
+                np.full(center_data.shape[0], "He", dtype=object),
+                center_data[:, 1] * 10.0,
+                center_data[:, 2] * 10.0,
+                center_data[:, 3] * 10.0,
+                center_data[:, 4],
+            ))
+            np.savetxt(
+                out_center,
+                center_xyz,
+                fmt=["%s", "%.6f", "%.6f", "%.6f", "%.6f"],
+                header=(
+                    f"{center_data.shape[0]}\n"
+                    "Properties=species:S:1:pos:R:3:diameter_nm:R:1 "
+                    f"Lattice=\"{box[0] * 10:.6f} 0 0 0 {box[1] * 10:.6f} 0 0 0 {box[2] * 10:.6f}\" "
+                    "pbc=\"T T T\""
+                ),
+                comments="",
+            )
 
     timings["pore"] = time.perf_counter()
 

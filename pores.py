@@ -211,7 +211,7 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
     """
     D_nm = np.asarray(D_nm, dtype=np.float32)
     acc_u8 = np.asarray(acc_u8, dtype=np.uint8)
-
+    eps = np.sqrt(np.sum(np.array(grid_info[3:]) ** 2)) * 2
     # 1) local maxima mask
     maxima_u8 = local_maxima_26_mask(
         D_nm, acc_u8, rmin_nm=rmin_center_nm, strict_plateau=strict_plateau)
@@ -226,13 +226,14 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
     nodes_nm = nodes_nm[mask]
     r_nm = r_nm[mask]
 
-    # keep = prune_balls(nodes_nm, r_nm, box,mode_flag=MODE_CONTAINED)
-    # nodes_nm = nodes_nm[keep]
-    # r_nm = r_nm[keep]
-
-    keep = prune_balls(nodes_nm, r_nm, box, mode_flag=MODE_OVERLAP)
+    keep = prune_balls(nodes_nm, r_nm, box,mode_flag=MODE_CONTAINED,eps=eps)
     nodes_nm = nodes_nm[keep]
     r_nm = r_nm[keep]
+
+    if prune:
+        keep = prune_balls(nodes_nm, r_nm, box, mode_flag=MODE_OVERLAP,eps=eps)
+        nodes_nm = nodes_nm[keep]
+        r_nm = r_nm[keep]
 
     edges = build_centerline_edges(
         nodes_nm, r_nm, k=k, box=box, alpha=alpha, max_dist_nm=max_dist_nm, workers=workers)
