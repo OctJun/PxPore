@@ -77,6 +77,17 @@ export PYTHONPATH="/path/to/source_tree/src:$PYTHONPATH"
 
 ## Command-line usage
 
+PxPore uses Numba `njit` kernels for the compute-heavy parts of the analysis.
+The first run in a fresh Python environment may spend extra time compiling
+these kernels. To remove this one-time compilation cost from a benchmark or
+production run, either run the warmup command first:
+
+```bash
+python -m PxPore.warmup
+```
+
+or run one preliminary analysis on any representative structure.
+
 ```bash
 python -m PxPore input.gro \
   --grid 0.02 \
@@ -146,4 +157,4 @@ If you use PxPore, please cite the associated manuscript or repository record.
 
 ## License
 
-License information should be supplied with the public release.
+PxPore is released under the MIT License. See [LICENSE](LICENSE).

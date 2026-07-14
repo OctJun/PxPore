@@ -71,6 +71,16 @@ export PYTHONPATH="/path/to/source_tree/src:$PYTHONPATH"
 
 ## 命令行使用
 
+PxPore 使用 Numba `njit` 内核加速主要计算。新的 Python 环境中第一次运行时，
+这些内核需要先编译，因此首轮 wall time 可能包含一次性 JIT 编译开销。如果要
+做性能测试或正式批量运行，建议先执行 warmup：
+
+```bash
+python -m PxPore.warmup
+```
+
+也可以先对任意一个代表性结构运行一次分析，再开始统计正式结果。
+
 ```bash
 python -m PxPore input.gro \
   --grid 0.02 \
@@ -137,4 +147,4 @@ result = analyse(
 
 ## 许可证
 
-公开发布时应同时提供许可证信息。
+PxPore 使用 MIT License 发布。详见 [LICENSE](LICENSE)。
