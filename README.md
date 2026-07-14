@@ -18,7 +18,7 @@ and pore-size descriptors.
 
 ## Requirements
 
-- Python 3.8 or newer
+- Python 3.10 or newer
 - NumPy
 - SciPy
 - Numba
@@ -39,27 +39,40 @@ install from it instead:
 python -m pip install -r requirements.txt
 ```
 
-## Run from source
-
-PxPore can be run directly from the source tree. From the parent directory that
-contains the `PxPore/` source folder:
+For local development, the project can also be installed in editable mode:
 
 ```bash
-export PYTHONPATH="$PWD:$PYTHONPATH"
-python -m PxPore PxPore/sharing/single_H.gro \
+python -m pip install -e .
+```
+
+## Project layout
+
+```text
+src/PxPore/        Python package source code
+src/PxPore/data/   Package data, including atom-parameter tables
+tests/data/        Input structures used for examples and checks
+```
+
+## Run from source
+
+PxPore can be run directly from the source tree. From the repository root:
+
+```bash
+export PYTHONPATH="$PWD/src:$PYTHONPATH"
+python -m PxPore tests/data/single_H.gro \
   --grid 0.02 \
   --probe 0.0 \
   --threads 8 \
-  --atoms PxPore/sharing/UFF.atoms \
+  --atoms src/PxPore/data/UFF.atoms \
   --pore \
   --stats
 ```
 
 If you are working from an extracted source archive, set `PYTHONPATH` to the
-directory that directly contains the `PxPore` package, for example:
+archive's `src` directory, for example:
 
 ```bash
-export PYTHONPATH="/path/to/source_parent:$PYTHONPATH"
+export PYTHONPATH="/path/to/source_tree/src:$PYTHONPATH"
 ```
 
 ## Command-line usage

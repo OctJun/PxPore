@@ -21,9 +21,12 @@ def run_warmup():
     env = os.environ.copy()
     env["PXPORE_IN_WARMUP"] = "1"
     env.setdefault("NUMBA_THREADING_LAYER", "omp")
+    example_structure = (
+        Path(__file__).resolve().parents[2] / "tests" / "data" / "single_H.gro"
+    )
     cmd = [sys.executable, "-m",
            "PxPore.cli",
-           str(Path(__file__).resolve().parent / "sharing" / "single_H.gro"),
+           str(example_structure),
            "--pore",
            "--g", "0.05",
            "--oct-level", "2",

@@ -47,7 +47,7 @@ def load_atom_info(filepath, overwrite=True):
 
     path = Path(filepath)
     if not path.exists():
-        path = Path(__file__).resolve().parent / "sharing" / filepath
+        path = Path(__file__).resolve().parent / "data" / filepath
 
     with open(path, "r", encoding="utf-8") as f:
 
