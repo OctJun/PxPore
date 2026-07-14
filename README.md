@@ -1,75 +1,136 @@
 # PxPore
 
-A Python toolkit for post-processing molecular dynamics simulations, focusing on pore structure analysis, free volume calculation, and pore size distribution.
+PxPore is a Python toolkit for post-processing molecular structures and
+molecular-dynamics snapshots. It focuses on grid-based pore analysis, free-volume
+calculation, accessible/trapped volume classification, surface-area estimation,
+and pore-size descriptors.
 
-## Installation
+## Features
 
-Assuming published on PyPI:
-
-```bash
-pip install pxpore
-```
+- Reads orthogonal `.gro`, `.xyz`, `.pdb`, and `.cif` structure files.
+- Computes cell volume, void volume, accessible volume, trapped volume, and
+  corresponding fractions.
+- Estimates accessible and total surface areas.
+- Computes pore descriptors such as PLD and LCD.
+- Supports optional octree refinement near molecular boundaries.
+- Uses Numba to accelerate grid, connectivity, and pore-analysis kernels.
+- Can write statistics, Gaussian cube files, and pore-visualization outputs.
 
 ## Requirements
 
-- Python >= 3.8
+- Python 3.8 or newer
 - NumPy
 - SciPy
-- Numba (for parallel acceleration)
-- Other dependencies: see `requirements.txt`
+- Numba
 
-## Usage Examples
-
-### Basic Command Line Usage
+Create a virtual environment and install the dependencies:
 
 ```bash
-python -m PxPore input.gro --grid 0.01 --probe 0.0 --pore --cube --stats
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install numpy scipy numba
 ```
 
-This analyzes the `input.gro` file with grid spacing 0.01 nm, no probe, enables pore analysis, outputs .cube files and statistics.
+If a `requirements.txt` file is provided with your copy of the project, you can
+install from it instead:
 
-### Python API Usage
+```bash
+python -m pip install -r requirements.txt
+```
+
+## Run from source
+
+PxPore can be run directly from the source tree. From the parent directory that
+contains the `PxPore/` source folder:
+
+```bash
+export PYTHONPATH="$PWD:$PYTHONPATH"
+python -m PxPore PxPore/sharing/single_H.gro \
+  --grid 0.02 \
+  --probe 0.0 \
+  --threads 8 \
+  --atoms PxPore/sharing/UFF.atoms \
+  --pore \
+  --stats
+```
+
+If you are working from an extracted source archive, set `PYTHONPATH` to the
+directory that directly contains the `PxPore` package, for example:
+
+```bash
+export PYTHONPATH="/path/to/source_parent:$PYTHONPATH"
+```
+
+## Command-line usage
+
+```bash
+python -m PxPore input.gro \
+  --grid 0.02 \
+  --probe 0.0 \
+  --threads 8 \
+  --atoms UFF.atoms \
+  --pore \
+  --cube \
+  --stats
+```
+
+This command analyzes `input.gro` with a 0.02 nm grid spacing and zero probe
+radius, enables pore analysis, and writes statistics. The optional `--cube`
+flag writes volumetric cube files.
+
+## Python API
 
 ```python
 from PxPore import analyse
 
-config = {
-    'input': 'structure.gro',
-    'grid': 0.01,
-    'probe': 0.1,
-    'pore': True,
-    'cube': True
-}
-result = analyse(**config)
+result = analyse(
+    input="structure.gro",
+    grid=0.02,
+    probe=0.0,
+    atoms="UFF.atoms",
+    threads=8,
+    pore=True,
+    stats=True,
+)
 ```
 
-## Parameter Description
+## Parameters
 
-- `--input` / `-i`: Input structure file (supports .gro, .xyz, .pdb, .cif)
-- `--grid` / `-g`: Grid spacing (nm), default 0.01
-- `--probe` / `-p`: Probe radius (nm), default 0.0
-- `--atoms`: Atom info file to override default radii
-- `--threads`: Numba threads, default half of available
-- `--out_prefix`: Output file prefix
-- `--no-surface`: Disable surface area analysis
-- `--pore`: Enable pore analysis
-- `--porevis`: Enable pore visualization output
-- `--no-octree`: Disable octree refinement
-- `--oct-level`: Max octree levels, default 4
-- `--oct-grid`: Min octree leaf size (nm), default 0.001
-- `--cube`: Output .cube files
-- `--cube-space`: .cube file spatial resolution
-- `--smooth`: Smooth output
-- `--stats`: Save statistics
-- `--debug`: Save intermediate arrays
-- `--debug-print`: Print extra debug info
+- `input`: input structure file. Supported formats are `.gro`, `.xyz`, `.pdb`,
+  and `.cif` for orthogonal simulation cells.
+- `--grid`, `-g`: target grid spacing in nm; default is `0.01`.
+- `--probe`, `-p`: probe radius in nm; default is `0.0`.
+- `--atoms`: atom parameter file used to override default radii and masses.
+  Expected format: `symbol Z mass(g/mol) LJsigma(nm) epsilon(K)`.
+- `--threads`: number of Numba threads; `0` uses half of available threads.
+- `--out_prefix`: output file prefix.
+- `--no-surface`: disable surface-area analysis.
+- `--pore`: enable pore analysis.
+- `--porevis`: write pore-visualization output.
+- `--no-octree`: disable octree refinement.
+- `--oct-level`: maximum octree refinement level; default is `4`.
+- `--oct-grid`: minimum octree leaf size in nm; default is `0.001`.
+- `--cube`: write Gaussian cube files.
+- `--cube-space`: cube-file spatial resolution.
+- `--smooth`: smooth output fields.
+- `--stats`: write statistics JSON.
+- `--debug`: save intermediate arrays.
+- `--debug-print`: print extra debug information.
+
+## Outputs
+
+Depending on the selected options, PxPore writes:
+
+- statistics JSON files containing geometric and pore descriptors;
+- optional cube files for volumetric fields;
+- optional pore-visualization outputs;
+- optional diagnostic arrays for verification.
 
 ## Citation
 
-If you use PxPore, please cite appropriately:
-
-[Provide relevant paper or GitHub link]
+If you use PxPore, please cite the associated manuscript or repository record.
 
 ## License
 
-[Specify license]
+License information should be supplied with the public release.
