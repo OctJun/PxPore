@@ -27,3 +27,6 @@ class AnalyseConfig:
 
     debug: bool = False
     debug_print: bool = False
+
+    connectivity: str = "legacy"
+    transport_direction: str = "any"

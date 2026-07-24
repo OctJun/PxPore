@@ -22,6 +22,12 @@ def build_parser():
                     help="target grid spacing in nm")
     ap.add_argument("--probe", "-p", type=float,
                     default=0.0, help="probe radius in nm")
+    ap.add_argument("--connectivity", choices=("legacy", "periodic"),
+                    default="legacy",
+                    help="connectivity boundary mode")
+    ap.add_argument("--transport-direction", choices=("any", "x", "y", "z"),
+                    default="any",
+                    help="transport direction used for accessibility")
     ap.add_argument("--atoms", type=str, default=None,
                     help="atom info file to load, overrides default tables. Format: symbol Z mass(g/mol) LJsigma(nm) epsilon(K)")
     ap.add_argument("--threads", type=int, default=0,
@@ -58,6 +64,8 @@ def namespace_to_config(args) -> AnalyseConfig:
         input=args.input,
         grid=args.grid,
         probe=args.probe,
+        connectivity=args.connectivity,
+        transport_direction=args.transport_direction,
         atoms=args.atoms,
         threads=args.threads,
         out_prefix=args.out_prefix,

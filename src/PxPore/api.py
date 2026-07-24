@@ -21,11 +21,15 @@ def analyse(
     stats: bool = False,
     debug: bool = False,
     debug_print: bool = False,
+    connectivity: str = "legacy",
+    transport_direction: str = "any",
 ):
     cfg = AnalyseConfig(
         input=input,
         grid=grid,
         probe=probe,
+        connectivity=connectivity,
+        transport_direction=transport_direction,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

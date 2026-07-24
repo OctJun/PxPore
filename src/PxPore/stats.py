@@ -32,6 +32,8 @@ def get_stats_and_envs(
         "atoms_table_path": os.path.abspath(args.atoms) if args.atoms else None,
         "grid_target_nm": float(args.grid),
         "probe_nm": float(args.probe),
+        "connectivity": str(args.connectivity),
+        "transport_direction": str(args.transport_direction),
         "threads_requested": int(args.threads),
         "threads_used": int(get_num_threads()),
         "threading_layer": threading_layer(),

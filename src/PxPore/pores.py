@@ -4,7 +4,11 @@ import numpy as np
 from numba import njit, prange
 from scipy.spatial import cKDTree
 
-from .connectivity_multicore import percolation_masks
+from .connectivity_multicore import (
+    percolation_masks,
+    percolation_masks_directional,
+    percolation_masks_periodic,
+)
 from .geometry import pbc_delta
 
 MODE_NONE = 0
@@ -291,9 +295,22 @@ def _fill_void_mask(dmin_nm, r_probe_nm, void_mask):
                 void_mask[i, j, k] = 1 if dmin_nm[i, j, k] >= r_probe_nm else 0
 
 
-def _has_percolation(r_probe_nm, dmin_nm, void_mask):
+def _has_percolation(
+    r_probe_nm,
+    dmin_nm,
+    void_mask,
+    connectivity="legacy",
+    transport_direction="any",
+):
     _fill_void_mask(dmin_nm, r_probe_nm, void_mask)
-    label_mask, _ = percolation_masks(void_mask)
+    if connectivity == "periodic":
+        label_mask, _ = percolation_masks_periodic(
+            void_mask, transport_direction)
+    elif transport_direction != "any":
+        label_mask, _ = percolation_masks_directional(
+            void_mask, transport_direction)
+    else:
+        label_mask, _ = percolation_masks(void_mask)
     ok = np.any(label_mask == 2)
     return ok, label_mask
 
@@ -304,6 +321,8 @@ def pld_lcd_by_bisection_from_dmin(
     probe_nm,
     rlow_nm=0.0,
     rhigh_nm=None,
+    connectivity="legacy",
+    transport_direction="any",
 ):
     """
     根据 dmin 场 + percolation_masks 在唯一值上二分查找 PLD，
@@ -316,6 +335,10 @@ def pld_lcd_by_bisection_from_dmin(
         二分下界（探针半径），单位 nm
     rhigh_nm : float or None
         二分上界（探针半径），单位 nm；默认取 max(dmin_nm)
+    connectivity : str
+        连通边界模式，可选 legacy 或 periodic
+    transport_direction : str
+        输运方向，可选 any、x、y 或 z
     verbose : bool
 
     Returns
@@ -339,11 +362,15 @@ def pld_lcd_by_bisection_from_dmin(
 
     void_mask = np.empty(_dmin_nm.shape, dtype=np.uint8)
 
-    ok_low, _ = _has_percolation(rlow_nm, _dmin_nm, void_mask)
+    ok_low, _ = _has_percolation(
+        rlow_nm, _dmin_nm, void_mask,
+        connectivity, transport_direction)
     if not ok_low:
         return 0.0, 0.0, lcd_nm
 
-    ok_high, _ = _has_percolation(rhigh_nm, _dmin_nm, void_mask)
+    ok_high, _ = _has_percolation(
+        rhigh_nm, _dmin_nm, void_mask,
+        connectivity, transport_direction)
     if ok_high:
         r_crit_nm = rhigh_nm
         pld_nm = 2.0 * r_crit_nm
@@ -363,7 +390,9 @@ def pld_lcd_by_bisection_from_dmin(
     while lo <= hi:
         mid = (lo + hi) // 2
         rmid = float(uniq[mid])
-        ok_mid, _ = _has_percolation(rmid, _dmin_nm, void_mask)
+        ok_mid, _ = _has_percolation(
+            rmid, _dmin_nm, void_mask,
+            connectivity, transport_direction)
         if ok_mid:
             best_idx = mid
             lo = mid + 1

@@ -30,13 +30,35 @@ from .pores import (
 )
 from .stats import get_stats_and_envs, save_stats
 from .geometry import GRID_MASK_PROBE, _tanh, build_cell_list, dmin_by_all_atoms, downsample, grid_masks
-from .connectivity_multicore import percolation_masks, LABEL_MASK_ACC, LABEL_MASK_TRAP
+from .connectivity_multicore import (
+    LABEL_MASK_ACC,
+    LABEL_MASK_TRAP,
+    percolation_masks,
+    percolation_masks_directional,
+    percolation_masks_periodic,
+)
 logger = logging.getLogger('PxPore')
 
 
 def analyse(config: AnalyseConfig) -> dict[str, Any]:
     start_time = datetime.datetime.now()
     timings = {"t0": time.perf_counter()}
+
+    if config.connectivity not in ("legacy", "periodic"):
+        raise ValueError("connectivity must be one of: legacy, periodic")
+    if config.transport_direction not in ("any", "x", "y", "z"):
+        raise ValueError("transport_direction must be one of: any, x, y, z")
+    if (
+        not config.no_octree
+        and (
+            config.connectivity != "legacy"
+            or config.transport_direction != "any"
+        )
+    ):
+        raise ValueError(
+            "periodic or directional connectivity currently requires "
+            "no_octree=True / --no-octree"
+        )
 
     # -------------------- threads --------------------
     if config.threads and config.threads >= 1:
@@ -161,6 +183,12 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     if oct_soa_tuple:
         label_mask, uf_parent = percolation_masks_with_octree(
             void, grid_mask, grid_info, oct_soa_tuple)
+    elif config.connectivity == "periodic":
+        label_mask, uf_parent = percolation_masks_periodic(
+            void, config.transport_direction)
+    elif config.transport_direction != "any":
+        label_mask, uf_parent = percolation_masks_directional(
+            void, config.transport_direction)
     else:
         label_mask, uf_parent = percolation_masks(void)
 
@@ -213,7 +241,10 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
         logger.info("[PORE] Calculating PLD")
         pld, _, _ = pld_lcd_by_bisection_from_dmin(
-            dmin2, config.grid, config.probe)
+            dmin2, config.grid, config.probe,
+            connectivity=config.connectivity,
+            transport_direction=config.transport_direction,
+        )
         lcd = 2 * r_nm.max()
         lcd_global = 2 * np.max(dmin)
         logger.info("[PORE] Calculating PSD")
