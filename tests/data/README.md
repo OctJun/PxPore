@@ -10,5 +10,7 @@ statistics, plots, logs, and other calculation results are not included.
 - `benchmark_structures/`: benchmark crystalline structures in several common
   formats.
 - `synthetic_systems/`: synthetic geometries used to test pore-analysis
-  behavior.
+  behavior. The `anisotropic_*` structures are deterministic sealed and
+  through-pore membranes with x- and z-directed surface normals. The workspace
+  case generator is `../scripts/generate_anisotropic_membranes.py`.
 - `tmc_dap/`: a single TMC-DAP frame for example analysis.

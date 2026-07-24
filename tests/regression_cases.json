@@ -1,0 +1,579 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "single-h",
+      "input": "tests/data/synthetic_systems/single_H.gro",
+      "arguments": {
+        "grid": 0.01,
+        "probe": 0.0,
+        "stats": true,
+        "surface_samples": 1000
+      },
+      "metrics": {
+        "stats.Vprobe_nm3": {
+          "reference": 0.007238,
+          "absolute_tolerance": 1e-6,
+          "relative_tolerance": 0.0
+        },
+        "stats.Stotal_nm2": {
+          "reference": 0.1809,
+          "absolute_tolerance": 1e-4,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Theory: V=4/3*pi*r^3; A=4*pi*r^2; r=0.12 nm"
+    },
+    {
+      "name": "512-h",
+      "input": "tests/data/synthetic_systems/H512.gro",
+      "arguments": {
+        "grid": 0.01,
+        "probe": 0.0,
+        "stats": true,
+        "surface_samples": 1000
+      },
+      "metrics": {
+        "stats.Vprobe_nm3": {
+          "reference": 3.7059,
+          "absolute_tolerance": 5e-4,
+          "relative_tolerance": 0.0
+        },
+        "stats.Stotal_nm2": {
+          "reference": 92.6208,
+          "absolute_tolerance": 5e-2,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": true,
+      "notes": "Theory: 512 isolated spheres; r=0.12 nm"
+    },
+    {
+      "name": "overlapped-h",
+      "input": "tests/data/synthetic_systems/case1_overlap.gro",
+      "arguments": {
+        "grid": 0.01,
+        "probe": 0.0,
+        "stats": true,
+        "surface_samples": 1000
+      },
+      "metrics": {
+        "stats.Vprobe_nm3": {
+          "reference": 0.0122,
+          "absolute_tolerance": 5e-5,
+          "relative_tolerance": 0.0
+        },
+        "stats.Stotal_nm2": {
+          "reference": 0.2723,
+          "absolute_tolerance": 5e-4,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Theory: two overlapping spheres; r=0.12 nm; h=0.06 nm"
+    },
+    {
+      "name": "throat",
+      "input": "tests/data/synthetic_systems/case2_throat.gro",
+      "arguments": {
+        "grid": 0.01,
+        "probe": 0.0,
+        "stats": true,
+        "pore": true,
+        "no_surface": true
+      },
+      "metrics": {
+        "stats.PLD_nm": {
+          "reference": 0.4492,
+          "absolute_tolerance": 5e-4,
+          "relative_tolerance": 0.0
+        },
+        "stats.LCD_nm": {
+          "reference": 1.452,
+          "absolute_tolerance": 5e-4,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": true,
+      "notes": "Theory: PLD=0.46 nm; LCD=1.46 nm"
+    },
+    {
+      "name": "inaccessible-pocket",
+      "input": "tests/data/synthetic_systems/case3_hollow_cube.gro",
+      "arguments": {
+        "grid": 0.01,
+        "probe": 0.0,
+        "stats": true,
+        "no_surface": true
+      },
+      "metrics": {
+        "stats.Vtrap_nm3": {
+          "reference": 0.5603,
+          "absolute_tolerance": 5e-4,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vacc_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-10,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": true,
+      "notes": "Closed pocket: accessible volume must remain zero"
+    },
+    {
+      "name": "connectivity-sealed-z-x",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "x",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed z membrane remains connected in x"
+    },
+    {
+      "name": "connectivity-sealed-z-y",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "y",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed z membrane remains connected in y"
+    },
+    {
+      "name": "connectivity-sealed-z-z",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "z",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed z membrane blocks transport in z"
+    },
+    {
+      "name": "connectivity-sealed-z-any",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "any",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Any-direction mode accepts in-plane connectivity"
+    },
+    {
+      "name": "connectivity-pore-z-x",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "x",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore z membrane remains connected in x"
+    },
+    {
+      "name": "connectivity-pore-z-y",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "y",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore z membrane remains connected in y"
+    },
+    {
+      "name": "connectivity-pore-z-z",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "z",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore z membrane is connected through z"
+    },
+    {
+      "name": "connectivity-pore-z-any",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_z.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "any",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore z membrane is connected in any-direction mode"
+    },
+    {
+      "name": "connectivity-sealed-x-x",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "x",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed x membrane blocks transport in x"
+    },
+    {
+      "name": "connectivity-sealed-x-y",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "y",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed x membrane remains connected in y"
+    },
+    {
+      "name": "connectivity-sealed-x-z",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "z",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Sealed x membrane remains connected in z"
+    },
+    {
+      "name": "connectivity-sealed-x-any",
+      "input": "tests/data/synthetic_systems/anisotropic_sealed_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "any",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.278144,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Any-direction mode accepts in-plane connectivity"
+    },
+    {
+      "name": "connectivity-pore-x-x",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "x",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore x membrane is connected through x"
+    },
+    {
+      "name": "connectivity-pore-x-y",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "y",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore x membrane remains connected in y"
+    },
+    {
+      "name": "connectivity-pore-x-z",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "z",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore x membrane remains connected in z"
+    },
+    {
+      "name": "connectivity-pore-x-any",
+      "input": "tests/data/synthetic_systems/anisotropic_pore_x.gro",
+      "arguments": {
+        "grid": 0.04,
+        "probe": 0.0,
+        "connectivity": "periodic",
+        "transport_direction": "any",
+        "no_octree": true,
+        "no_surface": true,
+        "stats": true
+      },
+      "metrics": {
+        "stats.Vacc_nm3": {
+          "reference": 10.97344,
+          "absolute_tolerance": 1e-9,
+          "relative_tolerance": 0.0
+        },
+        "stats.Vtrap_nm3": {
+          "reference": 0.0,
+          "absolute_tolerance": 1e-12,
+          "relative_tolerance": 0.0
+        }
+      },
+      "enabled": true,
+      "slow": false,
+      "notes": "Pore x membrane is connected in any-direction mode"
+    }
+  ]
+}
