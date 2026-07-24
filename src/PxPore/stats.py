@@ -48,6 +48,11 @@ def get_stats_and_envs(
             None if args.psd_mc_bin_size is None
             else float(args.psd_mc_bin_size)
         ),
+        "psd_local_max_mode": str(args.psd_local_max_mode),
+        "psd_min_center_radius_nm": float(args.psd_min_center_radius),
+        "psd_overlap_prune": bool(args.psd_overlap_prune),
+        "psd_overlap_threshold": float(args.psd_overlap_threshold),
+        "psd_hist_weighting": str(args.psd_hist_weighting),
         "octree_enabled": bool(not args.no_octree),
         "oct_level": int(args.oct_level),
         "oct_grid_nm": float(args.oct_grid),

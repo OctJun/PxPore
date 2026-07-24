@@ -50,6 +50,37 @@ def build_parser():
                     help="random seed for Monte Carlo PSD")
     ap.add_argument("--psd-mc-bin-size", type=float, default=None,
                     help="Monte Carlo PSD bin size in nm; default uses grid")
+    ap.add_argument(
+        "--psd-local-max-mode",
+        choices=("strict", "plateau"),
+        default="strict",
+        help="local-maximum criterion for center PSD",
+    )
+    ap.add_argument(
+        "--psd-min-center-radius",
+        type=float,
+        default=0.005,
+        help="minimum local-maximum radius in nm",
+    )
+    ap.add_argument(
+        "--no-psd-overlap-prune",
+        dest="psd_overlap_prune",
+        action="store_false",
+        default=True,
+        help="disable overlapping maximum-ball pruning",
+    )
+    ap.add_argument(
+        "--psd-overlap-threshold",
+        type=float,
+        default=1.0,
+        help="overlap pruning factor applied to the sum of ball radii",
+    )
+    ap.add_argument(
+        "--psd-hist-weighting",
+        choices=("volume", "number"),
+        default="volume",
+        help="histogram weighting for center PSD",
+    )
 
     ap.add_argument("--no-octree", action="store_true", default=False)
     ap.add_argument("--oct-level", type=int, default=4,
@@ -87,6 +118,11 @@ def namespace_to_config(args) -> AnalyseConfig:
         psd_mc_samples=args.psd_mc_samples,
         psd_mc_seed=args.psd_mc_seed,
         psd_mc_bin_size=args.psd_mc_bin_size,
+        psd_local_max_mode=args.psd_local_max_mode,
+        psd_min_center_radius=args.psd_min_center_radius,
+        psd_overlap_prune=args.psd_overlap_prune,
+        psd_overlap_threshold=args.psd_overlap_threshold,
+        psd_hist_weighting=args.psd_hist_weighting,
         no_octree=args.no_octree,
         oct_level=args.oct_level,
         oct_grid=args.oct_grid,

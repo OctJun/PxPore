@@ -51,6 +51,16 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         raise ValueError("transport_direction must be one of: any, x, y, z")
     if config.psd_method not in ("centers", "mc"):
         raise ValueError("psd_method must be one of: centers, mc")
+    if config.psd_local_max_mode not in ("strict", "plateau"):
+        raise ValueError(
+            "psd_local_max_mode must be one of: strict, plateau")
+    if config.psd_min_center_radius < 0:
+        raise ValueError("psd_min_center_radius must be non-negative")
+    if config.psd_overlap_threshold <= 0:
+        raise ValueError("psd_overlap_threshold must be positive")
+    if config.psd_hist_weighting not in ("volume", "number"):
+        raise ValueError(
+            "psd_hist_weighting must be one of: volume, number")
     if config.psd_method == "mc" and config.psd_mc_samples <= 0:
         raise ValueError("psd_mc_samples must be positive")
     if config.surface_samples <= 0:
@@ -235,20 +245,19 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         logger.info("[PORE] Calculating maximum balls")
 
         # prune = True if np.sum(acc) / (gx * gy * gz) < 0.5 else False 
-        prune = True
-
         nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
             D_nm=dmin2,
             acc_u8=acc,
             grid_info=grid_info,
             box=box,
-            rmin_center_nm=0.005,
-            strict_plateau=True,
-            prune=prune,
+            rmin_center_nm=config.psd_min_center_radius,
+            strict_plateau=(config.psd_local_max_mode == "strict"),
+            prune=config.psd_overlap_prune,
             k=12,
             alpha=1.2,
             max_dist_nm=None,
             workers=-1,
+            overlap_threshold=config.psd_overlap_threshold,
         )
         logger.info(
             f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
@@ -262,7 +271,11 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         lcd_global = 2 * np.max(dmin)
         logger.info(f"[PORE] Calculating PSD using {config.psd_method}")
         center_psd_data, center_data = get_psd_from_centerline(
-            nodes_nm, r_nm, bin_size=config.grid)
+            nodes_nm,
+            r_nm,
+            bin_size=config.grid,
+            weighting=config.psd_hist_weighting,
+        )
         psd_data = None
         voxel_psd_data = None
         promoted_fraction = None
@@ -298,7 +311,10 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                     out_psd,
                     psd_data,
                     fmt=["%d", "%.6f", "%d", "%.10e", "%.10e"],
-                    header="N diameters_nm count volume cumulative",
+                    header=(
+                        "N diameters_nm count "
+                        f"{config.psd_hist_weighting}_fraction cumulative"
+                    ),
                     delimiter="\t",
                     comments="#",
                 )

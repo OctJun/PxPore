@@ -37,3 +37,9 @@ class AnalyseConfig:
     psd_mc_bin_size: Optional[float] = None
 
     surface_samples: int = 1000
+
+    psd_local_max_mode: str = "strict"
+    psd_min_center_radius: float = 0.005
+    psd_overlap_prune: bool = True
+    psd_overlap_threshold: float = 1.0
+    psd_hist_weighting: str = "volume"

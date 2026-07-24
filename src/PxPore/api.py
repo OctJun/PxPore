@@ -28,6 +28,11 @@ def analyse(
     psd_mc_seed: int = 11451466,
     psd_mc_bin_size: float | None = None,
     surface_samples: int = 1000,
+    psd_local_max_mode: str = "strict",
+    psd_min_center_radius: float = 0.005,
+    psd_overlap_prune: bool = True,
+    psd_overlap_threshold: float = 1.0,
+    psd_hist_weighting: str = "volume",
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -40,6 +45,11 @@ def analyse(
         psd_mc_seed=psd_mc_seed,
         psd_mc_bin_size=psd_mc_bin_size,
         surface_samples=surface_samples,
+        psd_local_max_mode=psd_local_max_mode,
+        psd_min_center_radius=psd_min_center_radius,
+        psd_overlap_prune=psd_overlap_prune,
+        psd_overlap_threshold=psd_overlap_threshold,
+        psd_hist_weighting=psd_hist_weighting,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

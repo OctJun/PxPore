@@ -65,7 +65,10 @@ def local_maxima_26_mask(D_nm, acc_u8, rmin_nm=0.0, strict_plateau=True):
 
 
 @njit(parallel=True, cache=True)
-def _prune_from_candidate_list(nodes, r, box,  order, offsets, nbrs, eps, mode_flag):
+def _prune_from_candidate_list(
+    nodes, r, box, order, offsets, nbrs, eps, mode_flag,
+    overlap_threshold,
+):
     """
     统一内核：
       mode_flag = 0: contained
@@ -114,14 +117,25 @@ def _prune_from_candidate_list(nodes, r, box,  order, offsets, nbrs, eps, mode_f
 
             else:
                 # overlap: d < ri + rj - eps
-                rhs = (ri + rj) - eps
+                rhs = overlap_threshold * (ri + rj) - eps
                 if rhs > 0.0 and d2 < rhs * rhs:
                     alive[j] = 0
 
     return np.nonzero(alive)[0].astype(np.int32)
 
 
-def prune_balls(nodes_nm, r_nm, box, eps=1e-6, mode_flag=MODE_OVERLAP, leafsize=32, workers=-1):
+def prune_balls(
+    nodes_nm,
+    r_nm,
+    box,
+    eps=1e-6,
+    mode_flag=MODE_OVERLAP,
+    leafsize=32,
+    workers=-1,
+    overlap_threshold=1.0,
+):
+    if overlap_threshold <= 0:
+        raise ValueError("overlap_threshold must be positive")
     nodes = np.asarray(nodes_nm, dtype=np.float32)
     r = np.asarray(r_nm, dtype=np.float32)
     N = nodes.shape[0]
@@ -141,7 +155,11 @@ def prune_balls(nodes_nm, r_nm, box, eps=1e-6, mode_flag=MODE_OVERLAP, leafsize=
     elif mode_flag == MODE_OVERLAP:
         # 若 i 与 j 重叠，则 center_dist < ri + rj <= ri + rmax
         rmax = float(r.max())
-        neigh = tree.query_ball_point(nodes, r + rmax, workers=workers)
+        neigh = tree.query_ball_point(
+            nodes,
+            overlap_threshold * (r + rmax),
+            workers=workers,
+        )
     else:
         raise ValueError(f"Unknown mode_flag: {mode_flag}")
     counts = np.empty(N, dtype=np.int32)
@@ -159,7 +177,17 @@ def prune_balls(nodes_nm, r_nm, box, eps=1e-6, mode_flag=MODE_OVERLAP, leafsize=
         nbrs[s:e] = np.asarray(neigh[i], dtype=np.int32)
 
     order = np.argsort(-r).astype(np.int32)
-    return _prune_from_candidate_list(nodes, r, box, order, offsets, nbrs, eps, mode_flag)
+    return _prune_from_candidate_list(
+        nodes,
+        r,
+        box,
+        order,
+        offsets,
+        nbrs,
+        eps,
+        mode_flag,
+        overlap_threshold,
+    )
 
 
 def build_centerline_edges(nodes_nm, r_nm, box, k=12, alpha=1.2, max_dist_nm=None, workers=-1):
@@ -206,7 +234,8 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
                                         strict_plateau=True,
                                         prune=True,
                                         k=12, alpha=1.2, max_dist_nm=None,
-                                        workers=-1):
+                                        workers=-1,
+                                        overlap_threshold=1.0):
     """
     Returns:
       nodes_nm: (K,3) center points (nm)
@@ -235,7 +264,14 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
     r_nm = r_nm[keep]
 
     if prune:
-        keep = prune_balls(nodes_nm, r_nm, box, mode_flag=MODE_OVERLAP,eps=eps)
+        keep = prune_balls(
+            nodes_nm,
+            r_nm,
+            box,
+            mode_flag=MODE_OVERLAP,
+            eps=eps,
+            overlap_threshold=overlap_threshold,
+        )
         nodes_nm = nodes_nm[keep]
         r_nm = r_nm[keep]
 
@@ -245,7 +281,12 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
     return nodes_nm, r_nm, edges
 
 
-def get_psd_from_centerline(nodes_nm, r_nm, bin_size=0.01):
+def get_psd_from_centerline(
+    nodes_nm,
+    r_nm,
+    bin_size=0.01,
+    weighting="volume",
+):
     """
     从孔隙中心线结果计算PSD
     """
@@ -260,20 +301,23 @@ def get_psd_from_centerline(nodes_nm, r_nm, bin_size=0.01):
     bins = np.arange(0.0, diameters_nm.max() + 10 * bin_size, bin_size)
     # 数量分布
     hist, bin_edges = np.histogram(diameters_nm, bins=bins)
-    # 体积分布（假设每个中心点对应一个球）
-    volumes = (4.0 / 3.0) * np.pi * (r_nm ** 3)
-    vol_hist, _ = np.histogram(diameters_nm, bins=bins, weights=volumes)
-    # 差分分布：按bin宽度归一化后的体积分布
-    vol_sum = vol_hist.sum()
-    vol_hist_frac = vol_hist / vol_sum
-    vol_hist = vol_hist_frac / bin_size
-    cumulative = np.cumsum(vol_hist_frac)
+    if weighting == "volume":
+        weights = (4.0 / 3.0) * np.pi * (r_nm ** 3)
+    elif weighting == "number":
+        weights = np.ones(r_nm.shape[0], dtype=np.float64)
+    else:
+        raise ValueError("weighting must be one of: volume, number")
+    weighted_hist, _ = np.histogram(
+        diameters_nm, bins=bins, weights=weights)
+    weighted_sum = weighted_hist.sum()
+    weighted_fraction = weighted_hist / weighted_sum
+    cumulative = np.cumsum(weighted_fraction)
     bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
     psd_data = np.column_stack((
         np.arange(1, len(bin_centers) + 1, dtype=np.int32),
         bin_centers,
         hist,
-        vol_hist_frac,
+        weighted_fraction,
         cumulative
     ))
     center_data = np.column_stack((

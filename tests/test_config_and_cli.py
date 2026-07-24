@@ -23,6 +23,11 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.psd_mc_seed, 11451466)
         self.assertIsNone(cfg.psd_mc_bin_size)
         self.assertEqual(cfg.surface_samples, 1000)
+        self.assertEqual(cfg.psd_local_max_mode, "strict")
+        self.assertEqual(cfg.psd_min_center_radius, 0.005)
+        self.assertTrue(cfg.psd_overlap_prune)
+        self.assertEqual(cfg.psd_overlap_threshold, 1.0)
+        self.assertEqual(cfg.psd_hist_weighting, "volume")
 
     def test_custom_cli_values_reach_config(self):
         cfg = namespace_to_config(build_parser().parse_args([
@@ -34,6 +39,11 @@ class ConfigAndCliTests(unittest.TestCase):
             "--psd-mc-samples", "1234",
             "--psd-mc-seed", "99",
             "--psd-mc-bin-size", "0.025",
+            "--psd-local-max-mode", "plateau",
+            "--psd-min-center-radius", "0.02",
+            "--no-psd-overlap-prune",
+            "--psd-overlap-threshold", "0.85",
+            "--psd-hist-weighting", "number",
             "--surface-samples", "2500",
         ]))
         self.assertEqual(cfg.connectivity, "periodic")
@@ -43,11 +53,16 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.psd_mc_samples, 1234)
         self.assertEqual(cfg.psd_mc_seed, 99)
         self.assertEqual(cfg.psd_mc_bin_size, 0.025)
+        self.assertEqual(cfg.psd_local_max_mode, "plateau")
+        self.assertEqual(cfg.psd_min_center_radius, 0.02)
+        self.assertFalse(cfg.psd_overlap_prune)
+        self.assertEqual(cfg.psd_overlap_threshold, 0.85)
+        self.assertEqual(cfg.psd_hist_weighting, "number")
         self.assertEqual(cfg.surface_samples, 2500)
 
     def test_api_parameters_are_appended(self):
         names = list(inspect.signature(api_analyse).parameters)
-        self.assertEqual(names[-7:], [
+        self.assertEqual(names[-12:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -55,11 +70,16 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_mc_seed",
             "psd_mc_bin_size",
             "surface_samples",
+            "psd_local_max_mode",
+            "psd_min_center_radius",
+            "psd_overlap_prune",
+            "psd_overlap_threshold",
+            "psd_hist_weighting",
         ])
 
     def test_dataclass_parameters_are_appended(self):
         names = list(AnalyseConfig.__dataclass_fields__)
-        self.assertEqual(names[-7:], [
+        self.assertEqual(names[-12:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -67,6 +87,11 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_mc_seed",
             "psd_mc_bin_size",
             "surface_samples",
+            "psd_local_max_mode",
+            "psd_min_center_radius",
+            "psd_overlap_prune",
+            "psd_overlap_threshold",
+            "psd_hist_weighting",
         ])
 
     def test_invalid_new_values_fail_before_input(self):
@@ -78,6 +103,14 @@ class ConfigAndCliTests(unittest.TestCase):
             analyse("missing.gro", psd_mc_bin_size=0.0)
         with self.assertRaisesRegex(ValueError, "surface_samples"):
             analyse("missing.gro", surface_samples=0)
+        with self.assertRaisesRegex(ValueError, "psd_local_max_mode"):
+            analyse("missing.gro", psd_local_max_mode="invalid")
+        with self.assertRaisesRegex(ValueError, "psd_min_center_radius"):
+            analyse("missing.gro", psd_min_center_radius=-0.01)
+        with self.assertRaisesRegex(ValueError, "psd_overlap_threshold"):
+            analyse("missing.gro", psd_overlap_threshold=0.0)
+        with self.assertRaisesRegex(ValueError, "psd_hist_weighting"):
+            analyse("missing.gro", psd_hist_weighting="invalid")
         with self.assertRaisesRegex(ValueError, "--no-octree"):
             analyse("missing.gro", connectivity="periodic")
 
