@@ -40,6 +40,14 @@ def build_parser():
                     default=False, help="enable pore analysis")
     ap.add_argument("--porevis", action="store_true", default=False,
                     help="enableing output visulization of pore")
+    ap.add_argument("--psd-method", choices=("centers", "mc"),
+                    default="centers", help="pore-size distribution method")
+    ap.add_argument("--psd-mc-samples", type=int, default=50000,
+                    help="number of samples for Monte Carlo PSD")
+    ap.add_argument("--psd-mc-seed", type=int, default=11451466,
+                    help="random seed for Monte Carlo PSD")
+    ap.add_argument("--psd-mc-bin-size", type=float, default=None,
+                    help="Monte Carlo PSD bin size in nm; default uses grid")
 
     ap.add_argument("--no-octree", action="store_true", default=False)
     ap.add_argument("--oct-level", type=int, default=4,
@@ -72,6 +80,10 @@ def namespace_to_config(args) -> AnalyseConfig:
         no_surface=args.no_surface,
         pore=args.pore,
         porevis=args.porevis,
+        psd_method=args.psd_method,
+        psd_mc_samples=args.psd_mc_samples,
+        psd_mc_seed=args.psd_mc_seed,
+        psd_mc_bin_size=args.psd_mc_bin_size,
         no_octree=args.no_octree,
         oct_level=args.oct_level,
         oct_grid=args.oct_grid,

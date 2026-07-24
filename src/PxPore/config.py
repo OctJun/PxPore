@@ -30,3 +30,8 @@ class AnalyseConfig:
 
     connectivity: str = "legacy"
     transport_direction: str = "any"
+
+    psd_method: str = "centers"
+    psd_mc_samples: int = 50000
+    psd_mc_seed: int = 11451466
+    psd_mc_bin_size: Optional[float] = None

@@ -40,6 +40,13 @@ def get_stats_and_envs(
         "sched_affinity_count": int(len(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else -1),
         "surface_enabled": bool(not args.no_surface),
         "pore_enabled": bool(args.pore),
+        "psd_method": str(args.psd_method),
+        "psd_mc_samples": int(args.psd_mc_samples),
+        "psd_mc_seed": int(args.psd_mc_seed),
+        "psd_mc_bin_size_nm": (
+            None if args.psd_mc_bin_size is None
+            else float(args.psd_mc_bin_size)
+        ),
         "octree_enabled": bool(not args.no_octree),
         "oct_level": int(args.oct_level),
         "oct_grid_nm": float(args.oct_grid),

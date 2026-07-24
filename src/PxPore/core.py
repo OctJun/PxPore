@@ -25,6 +25,7 @@ from .atoms import build_mass, build_radii_nm, load_atom_info, symbols_to_Z
 from .pores import (
     filter_dmin_by_maxiaum_ball,
     get_psd_from_centerline,
+    get_psd_from_voxels_mc,
     pld_lcd_by_bisection_from_dmin,
     pore_centerline_from_distance_field,
 )
@@ -48,6 +49,15 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         raise ValueError("connectivity must be one of: legacy, periodic")
     if config.transport_direction not in ("any", "x", "y", "z"):
         raise ValueError("transport_direction must be one of: any, x, y, z")
+    if config.psd_method not in ("centers", "mc"):
+        raise ValueError("psd_method must be one of: centers, mc")
+    if config.psd_method == "mc" and config.psd_mc_samples <= 0:
+        raise ValueError("psd_mc_samples must be positive")
+    if (
+        config.psd_mc_bin_size is not None
+        and config.psd_mc_bin_size <= 0
+    ):
+        raise ValueError("psd_mc_bin_size must be positive")
     if (
         not config.no_octree
         and (
@@ -247,17 +257,73 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         )
         lcd = 2 * r_nm.max()
         lcd_global = 2 * np.max(dmin)
-        logger.info("[PORE] Calculating PSD")
-        psd_data, center_data = get_psd_from_centerline(
+        logger.info(f"[PORE] Calculating PSD using {config.psd_method}")
+        center_psd_data, center_data = get_psd_from_centerline(
             nodes_nm, r_nm, bin_size=config.grid)
+        psd_data = None
+        voxel_psd_data = None
+        promoted_fraction = None
+        psd_mc_bin_size = None
+        if config.psd_method == "centers":
+            psd_data = center_psd_data
+        else:
+            psd_mc_bin_size = (
+                config.grid
+                if config.psd_mc_bin_size is None
+                else config.psd_mc_bin_size
+            )
+            voxel_psd_data, promoted_fraction = get_psd_from_voxels_mc(
+                dmin2,
+                acc,
+                grid_info,
+                bin_size=psd_mc_bin_size,
+                n_samples=config.psd_mc_samples,
+                seed=config.psd_mc_seed,
+            )
+            logger.info(
+                f"[PORE] Samples promoted to a larger containing ball: "
+                f"{promoted_fraction:.2%}"
+            )
 
         pore_data = (pld, lcd, lcd_global)
 
         if config.stats:
-            out_psd = f"{out_parent_path}/{out_prefix}_psd.txt"
             out_center = f"{out_parent_path}/{out_prefix}_center.txt"
-            np.savetxt(out_psd, psd_data, fmt=["%d", "%.6f", "%d", "%.10e", "%.10e"],
-                       header="N diameters_nm count volume cumulative", delimiter="\t", comments="#")
+            if psd_data is not None:
+                out_psd = f"{out_parent_path}/{out_prefix}_psd.txt"
+                np.savetxt(
+                    out_psd,
+                    psd_data,
+                    fmt=["%d", "%.6f", "%d", "%.10e", "%.10e"],
+                    header="N diameters_nm count volume cumulative",
+                    delimiter="\t",
+                    comments="#",
+                )
+            if voxel_psd_data is not None:
+                out_voxel_psd = (
+                    f"{out_parent_path}/{out_prefix}_voxel_mc_psd.txt"
+                )
+                np.savetxt(
+                    out_voxel_psd,
+                    voxel_psd_data,
+                    fmt=[
+                        "%d", "%.6f", "%d", "%.10e",
+                        "%.10e", "%.10e", "%.10e",
+                    ],
+                    header=(
+                        "N diameters_nm count probability density_per_nm "
+                        "pb_density_per_nm cumulative\n"
+                        f"samples={config.psd_mc_samples} "
+                        f"seed={config.psd_mc_seed} "
+                        f"bin_size_nm={psd_mc_bin_size:.10f} "
+                        f"larger_ball_fraction={promoted_fraction:.10f} "
+                        f"pb_density_integral="
+                        f"{np.sum(voxel_psd_data[:, 5]) * psd_mc_bin_size:.10f} "
+                        "diameter=largest_containing_voxel_ball"
+                    ),
+                    delimiter="\t",
+                    comments="#",
+                )
             center_xyz = np.column_stack((
                 np.full(center_data.shape[0], "He", dtype=object),
                 center_data[:, 1] * 10.0,

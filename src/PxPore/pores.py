@@ -287,6 +287,137 @@ def get_psd_from_centerline(nodes_nm, r_nm, bin_size=0.01):
 
 
 @njit(parallel=True, cache=True)
+def _largest_containing_radii_on_grid(
+    sampled_flat,
+    dmin_nm,
+    acc_u8,
+    grid_info,
+    offsets,
+    offset_distance2,
+):
+    """为每个抽样体素并行查找包含它的最大体素球半径。"""
+    gx, gy, gz, _, _, _ = grid_info
+    out = np.empty(sampled_flat.size, dtype=np.float32)
+
+    for i in prange(sampled_flat.size):
+        flat = sampled_flat[i]
+        ix = flat // (gy * gz)
+        rem = flat % (gy * gz)
+        iy = rem // gz
+        iz = rem % gz
+        best = dmin_nm[ix, iy, iz]
+
+        for j in range(offsets.shape[0]):
+            ox = offsets[j, 0]
+            oy = offsets[j, 1]
+            oz = offsets[j, 2]
+            cx = (ix + ox) % gx
+            cy = (iy + oy) % gy
+            cz = (iz + oz) % gz
+            if acc_u8[cx, cy, cz] == 0:
+                continue
+            radius = dmin_nm[cx, cy, cz]
+            if radius <= best:
+                continue
+            if offset_distance2[j] <= radius * radius:
+                best = radius
+
+        out[i] = best
+
+    return out
+
+
+def get_psd_from_voxels_mc(
+    dmin_nm,
+    acc_u8,
+    grid_info,
+    bin_size=0.01,
+    n_samples=50000,
+    seed=11451466,
+):
+    """
+    从 accessible 体素中均匀抽样，并分配包含样本的最大体素球。
+    返回 PSD 数据和被更大包含球提升的样本比例。
+    """
+    if bin_size <= 0:
+        raise ValueError("bin_size must be positive")
+    if n_samples <= 0:
+        raise ValueError("n_samples must be positive")
+
+    dmin_nm = np.asarray(dmin_nm)
+    acc_u8 = np.asarray(acc_u8)
+    if dmin_nm.shape != acc_u8.shape:
+        raise ValueError("dmin_nm and acc_u8 must have the same shape")
+
+    valid = (acc_u8 != 0) & np.isfinite(dmin_nm) & (dmin_nm > 0)
+    valid_flat = np.flatnonzero(valid)
+    if valid_flat.size == 0:
+        raise ValueError("No accessible voxels with positive pore radius")
+    max_local_radius_nm = float(
+        np.max(dmin_nm, where=valid, initial=0.0))
+
+    rng = np.random.default_rng(seed)
+    sampled_flat = valid_flat[
+        rng.integers(0, valid_flat.size, size=n_samples)
+    ]
+    local_radii_nm = dmin_nm.ravel()[sampled_flat].astype(np.float64)
+    del valid_flat, valid
+
+    _, _, _, dgx, dgy, dgz = grid_info
+    rx = int(np.ceil(max_local_radius_nm / dgx))
+    ry = int(np.ceil(max_local_radius_nm / dgy))
+    rz = int(np.ceil(max_local_radius_nm / dgz))
+    offsets = []
+    offset_distance2 = []
+    max_r2 = max_local_radius_nm * max_local_radius_nm
+    for ox in range(-rx, rx + 1):
+        dx2 = (ox * dgx) ** 2
+        for oy in range(-ry, ry + 1):
+            dxy2 = dx2 + (oy * dgy) ** 2
+            for oz in range(-rz, rz + 1):
+                distance2 = dxy2 + (oz * dgz) ** 2
+                if distance2 <= max_r2:
+                    offsets.append((ox, oy, oz))
+                    offset_distance2.append(distance2)
+    offsets = np.asarray(offsets, dtype=np.int32)
+    offset_distance2 = np.asarray(offset_distance2, dtype=np.float32)
+
+    assigned_radii_nm = _largest_containing_radii_on_grid(
+        sampled_flat,
+        np.asarray(dmin_nm, dtype=np.float32),
+        np.asarray(acc_u8, dtype=np.uint8),
+        grid_info,
+        offsets,
+        offset_distance2,
+    )
+    sampled_diameters_nm = 2.0 * assigned_radii_nm
+    promoted_fraction = float(
+        np.mean(assigned_radii_nm > local_radii_nm + 1e-7))
+
+    max_diameter_nm = 2.0 * max_local_radius_nm
+    n_bins = max(1, int(np.ceil(max_diameter_nm / bin_size)))
+    bin_edges = np.arange(n_bins + 1, dtype=np.float64) * bin_size
+    hist, _ = np.histogram(sampled_diameters_nm, bins=bin_edges)
+    probability = hist.astype(np.float64) / float(n_samples)
+    density = probability / bin_size
+    next_probability = np.append(probability[1:], 0.0)
+    pb_density = (probability + next_probability) / (2.0 * bin_size)
+    cumulative = np.cumsum(probability)
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+    data = np.column_stack((
+        np.arange(1, n_bins + 1, dtype=np.int32),
+        bin_centers,
+        hist,
+        probability,
+        density,
+        pb_density,
+        cumulative,
+    ))
+    return data, promoted_fraction
+
+
+@njit(parallel=True, cache=True)
 def _fill_void_mask(dmin_nm, r_probe_nm, void_mask):
     nx, ny, nz = dmin_nm.shape
     for i in prange(nx):

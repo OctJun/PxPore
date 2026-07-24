@@ -23,6 +23,10 @@ def analyse(
     debug_print: bool = False,
     connectivity: str = "legacy",
     transport_direction: str = "any",
+    psd_method: str = "centers",
+    psd_mc_samples: int = 50000,
+    psd_mc_seed: int = 11451466,
+    psd_mc_bin_size: float | None = None,
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -30,6 +34,10 @@ def analyse(
         probe=probe,
         connectivity=connectivity,
         transport_direction=transport_direction,
+        psd_method=psd_method,
+        psd_mc_samples=psd_mc_samples,
+        psd_mc_seed=psd_mc_seed,
+        psd_mc_bin_size=psd_mc_bin_size,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,
