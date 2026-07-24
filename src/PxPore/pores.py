@@ -324,7 +324,8 @@ def pld_lcd_by_bisection_from_dmin(
     r_crit_nm : float
     lcd_nm : float
     """
-    _dmin_nm = np.ascontiguousarray(dmin_nm) - probe_nm
+    # _dmin_nm = np.ascontiguousarray(dmin_nm) - probe_nm
+    _dmin_nm = np.ascontiguousarray(dmin_nm)
     dmax = float(np.max(_dmin_nm))
     lcd_nm = 2.0 * dmax
     tol_nm = tol_nm / 2

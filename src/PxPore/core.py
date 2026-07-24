@@ -213,7 +213,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
         logger.info("[PORE] Calculating PLD")
         pld, _, _ = pld_lcd_by_bisection_from_dmin(
-            dmin, config.grid, config.probe)
+            dmin2, config.grid, config.probe)
         lcd = 2 * r_nm.max()
         lcd_global = 2 * np.max(dmin)
         logger.info("[PORE] Calculating PSD")
