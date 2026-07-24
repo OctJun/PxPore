@@ -36,6 +36,8 @@ def build_parser():
 
     ap.add_argument("--no-surface", action="store_true",
                     default=False, help="disable surface area analysis")
+    ap.add_argument("--surface-samples", type=int, default=1000,
+                    help="Fibonacci surface samples per atom")
     ap.add_argument("--pore", action="store_true",
                     default=False, help="enable pore analysis")
     ap.add_argument("--porevis", action="store_true", default=False,
@@ -78,6 +80,7 @@ def namespace_to_config(args) -> AnalyseConfig:
         threads=args.threads,
         out_prefix=args.out_prefix,
         no_surface=args.no_surface,
+        surface_samples=args.surface_samples,
         pore=args.pore,
         porevis=args.porevis,
         psd_method=args.psd_method,

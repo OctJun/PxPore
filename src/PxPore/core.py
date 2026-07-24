@@ -53,6 +53,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         raise ValueError("psd_method must be one of: centers, mc")
     if config.psd_method == "mc" and config.psd_mc_samples <= 0:
         raise ValueError("psd_mc_samples must be positive")
+    if config.surface_samples <= 0:
+        raise ValueError("surface_samples must be positive")
     if (
         config.psd_mc_bin_size is not None
         and config.psd_mc_bin_size <= 0
@@ -213,6 +215,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         surface_area = fibonacci_sphere_surface_area(
             pos, rad, box, config.probe, grid_info,
             grid_mask, label_mask, cell_list_obj, oct_soa_tuple,
+            nsample=config.surface_samples,
         )
     timings["surface"] = time.perf_counter()
 

@@ -158,7 +158,7 @@ def fibonacci_sphere_surface_area(
         label_mask (np.ndarray): Mask labeling grid points (0=solid, 1=trap, 2=accessible).
         cell_list_obj (object): Cell list object for neighbor search.
         oct_soa_tuple (tuple): Octree structure for spatial queries.
-        nsample (int, optional): Number of Monte Carlo samples per atom (default: 50000).
+        nsample (int, optional): Number of Fibonacci samples per atom (default: 1000).
         seed (int, optional): Random seed for reproducibility (default: 114514).
 
     Returns:
@@ -212,4 +212,3 @@ def fibonacci_sphere_surface_area(
 
 
     return area_per_atom_accessible.sum(),area_per_atom_total.sum()  # nm^2
-

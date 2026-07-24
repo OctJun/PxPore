@@ -35,3 +35,5 @@ class AnalyseConfig:
     psd_mc_samples: int = 50000
     psd_mc_seed: int = 11451466
     psd_mc_bin_size: Optional[float] = None
+
+    surface_samples: int = 1000

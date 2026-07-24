@@ -27,6 +27,7 @@ def analyse(
     psd_mc_samples: int = 50000,
     psd_mc_seed: int = 11451466,
     psd_mc_bin_size: float | None = None,
+    surface_samples: int = 1000,
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -38,6 +39,7 @@ def analyse(
         psd_mc_samples=psd_mc_samples,
         psd_mc_seed=psd_mc_seed,
         psd_mc_bin_size=psd_mc_bin_size,
+        surface_samples=surface_samples,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

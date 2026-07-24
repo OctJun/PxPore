@@ -130,6 +130,7 @@ result = analyse(
 - `--threads`: number of Numba threads; `0` uses half of available threads.
 - `--out_prefix`: output file prefix.
 - `--no-surface`: disable surface-area analysis.
+- `--surface-samples`: Fibonacci surface samples per atom; default is `1000`.
 - `--pore`: enable pore analysis.
 - `--porevis`: write pore-visualization output.
 - `--psd-method`: PSD method, `centers` (default) or `mc`.

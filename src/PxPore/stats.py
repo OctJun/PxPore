@@ -39,6 +39,7 @@ def get_stats_and_envs(
         "threading_layer": threading_layer(),
         "sched_affinity_count": int(len(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else -1),
         "surface_enabled": bool(not args.no_surface),
+        "surface_samples": int(args.surface_samples),
         "pore_enabled": bool(args.pore),
         "psd_method": str(args.psd_method),
         "psd_mc_samples": int(args.psd_mc_samples),

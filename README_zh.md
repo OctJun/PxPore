@@ -120,6 +120,7 @@ result = analyse(
 - `--threads`：Numba 线程数；`0` 表示使用可用线程数的一半。
 - `--out_prefix`：输出文件前缀。
 - `--no-surface`：禁用表面积分析。
+- `--surface-samples`：每个原子的 Fibonacci 表面积采样点数；默认值为 `1000`。
 - `--pore`：启用孔隙分析。
 - `--porevis`：输出孔隙可视化结果。
 - `--psd-method`：PSD 方法，可选 `centers`（默认）或 `mc`。
