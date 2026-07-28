@@ -83,7 +83,7 @@ def build_parser():
     )
 
     ap.add_argument("--no-octree", action="store_true", default=False)
-    ap.add_argument("--oct-level", type=int, default=4,
+    ap.add_argument("--oct-level", type=int, default=2,
                     help="max octree levels")
     ap.add_argument("--oct-grid", type=float, default=0.001,
                     help="minimum octree leaf size in nm")

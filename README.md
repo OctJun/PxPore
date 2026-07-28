@@ -138,7 +138,7 @@ result = analyse(
 - `--psd-mc-seed`: Monte Carlo PSD random seed; default is `11451466`.
 - `--psd-mc-bin-size`: Monte Carlo PSD bin size in nm; default uses `--grid`.
 - `--no-octree`: disable octree refinement.
-- `--oct-level`: maximum octree refinement level; default is `4`.
+- `--oct-level`: maximum octree refinement level; default is `2`.
 - `--oct-grid`: minimum octree leaf size in nm; default is `0.001`.
 - `--cube`: write Gaussian cube files.
 - `--cube-space`: cube-file spatial resolution.

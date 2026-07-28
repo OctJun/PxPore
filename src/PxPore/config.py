@@ -16,7 +16,7 @@ class AnalyseConfig:
     porevis: bool = False
     
     no_octree: bool = False
-    oct_level: int = 4
+    oct_level: int = 2
     oct_grid: float = 0.001
 
     cube: bool = False

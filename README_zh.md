@@ -128,7 +128,7 @@ result = analyse(
 - `--psd-mc-seed`：Monte Carlo PSD 随机种子；默认值为 `11451466`。
 - `--psd-mc-bin-size`：Monte Carlo PSD 的 bin 宽，单位 nm；默认使用网格间距。
 - `--no-octree`：禁用八叉树细化。
-- `--oct-level`：最大八叉树细化层数；默认值为 `4`。
+- `--oct-level`：最大八叉树细化层数；默认值为 `2`。
 - `--oct-grid`：最小八叉树叶节点尺寸，单位 nm；默认值为 `0.001`。
 - `--cube`：输出 Gaussian cube 文件。
 - `--cube-space`：cube 文件空间分辨率。

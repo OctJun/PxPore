@@ -18,6 +18,7 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.connectivity, "legacy")
         self.assertEqual(cfg.transport_direction, "any")
         self.assertFalse(cfg.no_octree)
+        self.assertEqual(cfg.oct_level, 2)
         self.assertEqual(cfg.psd_method, "centers")
         self.assertEqual(cfg.psd_mc_samples, 50000)
         self.assertEqual(cfg.psd_mc_seed, 11451466)
@@ -61,6 +62,12 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.surface_samples, 2500)
 
     def test_api_parameters_are_appended(self):
+        self.assertEqual(
+            inspect.signature(api_analyse).parameters[
+                "oct_level"
+            ].default,
+            2,
+        )
         names = list(inspect.signature(api_analyse).parameters)
         self.assertEqual(names[-12:], [
             "connectivity",
