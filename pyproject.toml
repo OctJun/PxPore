@@ -19,6 +19,14 @@ dependencies = [
     "scipy==1.15.3",
 ]
 
+[project.optional-dependencies]
+sensitivity = [
+    "matplotlib>=3.7",
+]
+plotting = [
+    "matplotlib>=3.7",
+]
+
 [project.scripts]
 pxpore = "PxPore.cli:run"
 

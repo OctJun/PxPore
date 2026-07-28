@@ -9,3 +9,6 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+sensitivity_work/
+docs/sensitivity_analysis/
+docs/figures/

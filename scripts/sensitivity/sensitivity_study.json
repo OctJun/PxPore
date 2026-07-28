@@ -1,0 +1,475 @@
+{
+  "schema_version": 2,
+  "study_name": "PxPore parameter sensitivity",
+  "work_dir": "sensitivity_work",
+  "docs_dir": "docs/sensitivity_analysis",
+  "execution": {
+    "jobs": 8,
+    "threads_per_process": 8
+  },
+  "fixed_parameters": {
+    "probe_nm": 0.0,
+    "oct_grid_nm": 0.001,
+    "surface_samples": 1000,
+    "psd_method": "centers",
+    "psd_mc_samples": 50000,
+    "psd_mc_seeds": [11451466, 11451467, 11451468],
+    "psd_local_max_mode": "strict",
+    "psd_min_center_radius_nm": 0.005,
+    "psd_overlap_threshold": 1.0,
+    "psd_hist_weighting": "volume"
+  },
+  "parameter_ranges": {
+    "grid_nm": {
+      "small": [0.005, 0.01, 0.015, 0.02, 0.03, 0.04],
+      "medium": [0.01, 0.015, 0.02, 0.03, 0.04],
+      "large": [0.02, 0.025, 0.03, 0.035, 0.04]
+    },
+    "octree_level": [1, 2, 3, 4, 5],
+    "surface_samples": [100, 250, 500, 1000, 2000, 5000, 10000],
+    "psd_method": ["centers", "mc"],
+    "psd_local_max_mode": ["strict", "plateau"],
+    "psd_min_center_radius_nm": [0.0, 0.005, 0.01, 0.02],
+    "psd_overlap_threshold": [0.6, 0.75, 0.9, 1.0, 1.1, 1.25],
+    "psd_hist_weighting": ["number", "volume"],
+    "psd_mc_samples": [10000, 50000, 200000],
+    "probe_nm": [0.0, 0.05, 0.1, 0.14, 0.2],
+    "transport_direction": ["x", "y", "z", "any"]
+  },
+  "scan_defaults": {
+    "grid": {
+      "no_octree": true,
+      "surface_enabled": true
+    },
+    "octree": {
+      "no_octree": false,
+      "surface_enabled": true
+    },
+    "surface": {
+      "no_octree": true,
+      "surface_enabled": true,
+      "pore_enabled": false
+    },
+    "probe": {
+      "grid_nm": 0.02,
+      "no_octree": true,
+      "surface_enabled": false,
+      "pore_enabled": true
+    },
+    "psd_method": {
+      "no_octree": true,
+      "surface_enabled": false,
+      "pore_enabled": true
+    },
+    "connectivity": {
+      "grid_nm": 0.04,
+      "connectivity": "periodic",
+      "no_octree": true,
+      "surface_enabled": false,
+      "pore_enabled": false
+    }
+  },
+  "systems": {
+    "single_h": {
+      "path": "tests/data/synthetic_systems/single_H.gro",
+      "category": "analytic",
+      "description": "Single isolated H sphere",
+      "grid_class": "small",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4, 5],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Stotal_nm2"],
+        "psd_method": ["PSD"]
+      },
+      "reference": {
+        "Vprobe_nm3": {
+          "value": 0.007238229473870883,
+          "source": "4/3*pi*r^3, r=0.12 nm"
+        },
+        "Stotal_nm2": {
+          "value": 0.18095573684677208,
+          "source": "4*pi*r^2, r=0.12 nm"
+        }
+      }
+    },
+    "h512": {
+      "path": "tests/data/synthetic_systems/H512.gro",
+      "category": "analytic",
+      "description": "512 isolated H spheres",
+      "grid_class": "small",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Stotal_nm2"],
+        "psd_method": ["PSD"]
+      },
+      "reference": {
+        "Vprobe_nm3": {
+          "value": 3.705973490621892,
+          "source": "512*4/3*pi*r^3, r=0.12 nm"
+        },
+        "Stotal_nm2": {
+          "value": 92.6493372655473,
+          "source": "512*4*pi*r^2, r=0.12 nm"
+        }
+      }
+    },
+    "overlapped_h": {
+      "path": "tests/data/synthetic_systems/case1_overlap.gro",
+      "category": "analytic",
+      "description": "Two overlapping H spheres",
+      "grid_class": "small",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4, 5],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Stotal_nm2"],
+        "psd_method": ["PSD"]
+      },
+      "reference": {
+        "Vprobe_nm3": {
+          "value": 0.012214512237157116,
+          "source": "analytic union volume"
+        },
+        "Stotal_nm2": {
+          "value": 0.2714336052701581,
+          "source": "analytic exposed surface"
+        }
+      }
+    },
+    "throat": {
+      "path": "tests/data/synthetic_systems/case2_throat.gro",
+      "category": "analytic",
+      "description": "Analytic narrow throat",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "probe_scan": true,
+      "metrics": {
+        "grid": ["Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "probe": ["PLD_nm", "LCD_nm"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "probe_reference": {
+        "PLD_nm": {
+          "intercept": 0.46,
+          "slope": -2.0,
+          "minimum": 0.0,
+          "source": "max(0, 2*(Rn-r-probe)), Rn=0.35 nm, r=0.12 nm"
+        },
+        "LCD_nm": {
+          "intercept": 1.46,
+          "slope": -2.0,
+          "minimum": 0.0,
+          "source": "max(0, 2*(Rw-r-probe)), Rw=0.85 nm, r=0.12 nm"
+        }
+      },
+      "reference": {
+        "PLD_nm": {
+          "value": 0.46,
+          "source": "2*(Rn-r), Rn=0.35 nm"
+        },
+        "LCD_nm": {
+          "value": 1.46,
+          "source": "2*(Rw-r), Rw=0.85 nm"
+        }
+      }
+    },
+    "inaccessible_pocket": {
+      "path": "tests/data/synthetic_systems/case3_hollow_cube.gro",
+      "category": "analytic",
+      "description": "Closed inaccessible pocket",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4, 5],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": false,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2"],
+        "octree": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Stotal_nm2"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": []
+      },
+      "reference": {
+        "Vacc_nm3": {
+          "value": 0.0,
+          "source": "closed-pocket definition"
+        }
+      }
+    },
+    "anisotropic_pore_x": {
+      "path": "tests/data/synthetic_systems/anisotropic_pore_x.gro",
+      "category": "anisotropic",
+      "description": "Membrane with an x-directed through pore",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "octree_connectivity": "legacy",
+      "connectivity": "periodic",
+      "transport_direction": "x",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Vvoid_nm3", "Stotal_nm2"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"],
+        "connectivity": ["Vacc_nm3", "Vtrap_nm3"]
+      },
+      "connectivity_scan": true,
+      "connectivity_reference": {
+        "x": {
+          "Vacc_nm3": 10.97344,
+          "Vtrap_nm3": 0.0
+        },
+        "y": {
+          "Vacc_nm3": 10.97344,
+          "Vtrap_nm3": 0.0
+        },
+        "z": {
+          "Vacc_nm3": 10.97344,
+          "Vtrap_nm3": 0.0
+        },
+        "any": {
+          "Vacc_nm3": 10.97344,
+          "Vtrap_nm3": 0.0
+        }
+      },
+      "reference": {}
+    },
+    "anisotropic_pore_z": {
+      "path": "tests/data/synthetic_systems/anisotropic_pore_z.gro",
+      "category": "anisotropic",
+      "description": "Membrane with a z-directed through pore",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "octree_connectivity": "legacy",
+      "connectivity": "periodic",
+      "transport_direction": "z",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Vvoid_nm3", "Stotal_nm2"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "anisotropic_sealed_x": {
+      "path": "tests/data/synthetic_systems/anisotropic_sealed_x.gro",
+      "category": "anisotropic",
+      "description": "Membrane sealed in the x direction",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "octree_connectivity": "legacy",
+      "connectivity": "periodic",
+      "transport_direction": "x",
+      "pore_applicable": false,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2"],
+        "octree": ["Vprobe_nm3", "Vvoid_nm3", "Stotal_nm2"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": [],
+        "connectivity": ["Vacc_nm3", "Vtrap_nm3"]
+      },
+      "connectivity_scan": true,
+      "connectivity_reference": {
+        "x": {
+          "Vacc_nm3": 0.0,
+          "Vtrap_nm3": 10.278144
+        },
+        "y": {
+          "Vacc_nm3": 10.278144,
+          "Vtrap_nm3": 0.0
+        },
+        "z": {
+          "Vacc_nm3": 10.278144,
+          "Vtrap_nm3": 0.0
+        },
+        "any": {
+          "Vacc_nm3": 10.278144,
+          "Vtrap_nm3": 0.0
+        }
+      },
+      "reference": {
+        "Vacc_nm3": {
+          "value": 0.0,
+          "source": "sealed through-plane direction"
+        }
+      }
+    },
+    "anisotropic_sealed_z": {
+      "path": "tests/data/synthetic_systems/anisotropic_sealed_z.gro",
+      "category": "anisotropic",
+      "description": "Membrane sealed in the z direction",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "octree_connectivity": "legacy",
+      "connectivity": "periodic",
+      "transport_direction": "z",
+      "pore_applicable": false,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vvoid_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2"],
+        "octree": ["Vprobe_nm3", "Vvoid_nm3", "Stotal_nm2"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": []
+      },
+      "reference": {
+        "Vacc_nm3": {
+          "value": 0.0,
+          "source": "sealed through-plane direction"
+        }
+      }
+    },
+    "hkust1": {
+      "path": "tests/data/benchmark_structures/HKUST1.gro",
+      "category": "porous_crystal",
+      "description": "HKUST-1 benchmark crystal",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "octree": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_m2/g", "Stotal_m2/g"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "irmof1": {
+      "path": "tests/data/benchmark_structures/IRMOF1.gro",
+      "category": "porous_crystal",
+      "description": "IRMOF-1 benchmark crystal",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.01,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "octree": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_m2/g", "Stotal_m2/g"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "zif8ap": {
+      "path": "tests/data/benchmark_structures/ZIF8AP.gro",
+      "category": "porous_crystal",
+      "description": "ZIF-8 AP benchmark crystal",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.01,
+      "octree_grid_nm": 0.02,
+      "octree_levels": [1, 2, 3],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "octree": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_m2/g", "Stotal_m2/g"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "equal_overlapping": {
+      "path": "tests/data/synthetic_systems/equal_overlapping.gro",
+      "category": "psd_synthetic",
+      "description": "Equal neighboring cavities with overlapping maximum balls",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "unequal_overlapping": {
+      "path": "tests/data/synthetic_systems/unequal_overlapping.gro",
+      "category": "psd_synthetic",
+      "description": "Unequal neighboring cavities with overlapping maximum balls",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "equal_separated": {
+      "path": "tests/data/synthetic_systems/equal_separated.gro",
+      "category": "psd_synthetic",
+      "description": "Separated equal cavities connected by a narrow throat",
+      "grid_class": "medium",
+      "baseline_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3, 4],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "octree": ["Vprobe_nm3", "Vacc_nm3", "Vtrap_nm3", "Sacc_nm2", "Stotal_nm2", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_nm2", "Stotal_nm2"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    },
+    "tmc_dap": {
+      "path": "tests/data/tmc_dap/TMC-DAP_prod.gro",
+      "category": "amorphous_membrane",
+      "description": "Representative TMC-DAP membrane frame",
+      "grid_class": "large",
+      "baseline_grid_nm": 0.02,
+      "octree_grid_nm": 0.04,
+      "octree_levels": [1, 2, 3],
+      "connectivity": "legacy",
+      "transport_direction": "any",
+      "pore_applicable": true,
+      "metrics": {
+        "grid": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "octree": ["Vvoid_frac", "Vacc_frac", "Vtrap_frac", "Sacc_m2/g", "Stotal_m2/g", "PLD_nm", "LCD_nm"],
+        "surface": ["Sacc_m2/g", "Stotal_m2/g"],
+        "psd_method": ["PSD", "PLD_nm", "LCD_nm"]
+      },
+      "reference": {}
+    }
+  }
+}

@@ -156,6 +156,19 @@ Depending on the selected options, PxPore writes:
 - optional pore-visualization outputs;
 - optional diagnostic arrays for verification.
 
+## Sensitivity study
+
+The reproducible parameter-sensitivity and plotting workflow is documented in
+[scripts/sensitivity/README.md](scripts/sensitivity/README.md). A sanitized
+snapshot of the raw numerical results is described in
+[results/README.md](results/README.md).
+
+## Plotting
+
+The sanitized publication plotting scripts, HMOF comparison notebook, and data
+package instructions are documented in
+[scripts/plotting/README.md](scripts/plotting/README.md).
+
 ## Citation
 
 If you use PxPore, please cite the associated manuscript or repository record.

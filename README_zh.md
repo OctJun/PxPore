@@ -146,6 +146,18 @@ result = analyse(
 - 可选的孔隙可视化结果；
 - 可选的中间调试数组。
 
+## 敏感性分析
+
+参数敏感性分析与绘图工作流见
+[scripts/sensitivity/README.md](scripts/sensitivity/README.md)。清理本机路径
+和运行环境信息后的原始数值结果包见
+[results/README.md](results/README.md)。
+
+## 绘图
+
+脱敏后的论文绘图脚本、HMOF 对比 notebook 和结果数据包说明见
+[scripts/plotting/README.md](scripts/plotting/README.md)。
+
 ## 引用
 
 如果使用 PxPore，请引用相关论文或代码仓库记录。
