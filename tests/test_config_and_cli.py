@@ -118,7 +118,7 @@ class ConfigAndCliTests(unittest.TestCase):
             analyse("missing.gro", psd_overlap_threshold=0.0)
         with self.assertRaisesRegex(ValueError, "psd_hist_weighting"):
             analyse("missing.gro", psd_hist_weighting="invalid")
-        with self.assertRaisesRegex(ValueError, "--no-octree"):
+        with self.assertRaises(FileNotFoundError):
             analyse("missing.gro", connectivity="periodic")
 
 

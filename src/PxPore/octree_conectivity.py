@@ -10,8 +10,6 @@ OCC_SOLID = np.uint8(0)
 OCC_VOID = np.uint8(1)
 OCC_SPLIT = np.uint8(2)
 
-N_THREADS=numba.get_num_threads()
-
 @njit(inline='always', cache=True)
 def _idx3d(ix, iy, iz, gy, gz):
     return (ix * gy + iy) * gz + iz
@@ -160,7 +158,7 @@ def _extract_void_leaves(grid_info, oct_soa_tuple):
 def _union_all_leaf_components(
     grid_info, grid_mask, oct_soa_tuple,
     leaf_linear, leaf_root_linear, leaf_bucket,
-    parent_leaf, rank_leaf, tol
+    parent_leaf, rank_leaf, tol, n_threads
 ):
     gx, gy, gz, dgx, dgy, dgz = grid_info
     x, y, z, d, parent, child, level, occ = oct_soa_tuple
@@ -179,10 +177,12 @@ def _union_all_leaf_components(
 
     n_leaf = leaf_linear.shape[0]
 
-    # 每个线程分配 n_leaf * 12 个 uint32 空间（每个边对占 2 个）
-    buf_capacity = (n_leaf * 6 * 2 // N_THREADS ) * 2
-    thread_buffers = np.zeros(shape=(N_THREADS,buf_capacity),dtype=np.uint32)
-    write_pos = np.zeros(N_THREADS, dtype=np.int32)
+    # n_threads 由非 JIT 包装层在调用时传入。不要在 cache=True 的函数
+    # 内调用 get_num_threads()，否则 Numba 会将其视为动态全局并禁用缓存。
+    buf_capacity = max(100000, (n_leaf * 6 * 2 // n_threads) * 2)
+    thread_buffers = np.zeros(shape=(n_threads,buf_capacity),dtype=np.uint32)
+    write_pos = np.zeros(n_threads, dtype=np.int64)
+    overflow = np.zeros(n_threads, dtype=np.uint8)
 
     for ix in prange(gx):
         tid = numba.get_thread_id()
@@ -214,7 +214,7 @@ def _union_all_leaf_components(
                         ):
                             # 写入边对，并检查越界（实际很少发生）
                             if pos + 2 > buf_capacity:
-                                # 理论上不会进来，但安全起见可以扩大缓冲区或报错
+                                overflow[tid] = 1
                                 continue
                             buf[pos] = np.uint32(p)
                             buf[pos + 1] = np.uint32(q)
@@ -243,6 +243,7 @@ def _union_all_leaf_components(
                                         x[nid_q], y[nid_q], z[nid_q], hq, tol
                                     ):
                                         if pos + 2 > buf_capacity:
+                                            overflow[tid] = 1
                                             continue
                                         buf[pos] = np.uint32(p)
                                         buf[pos + 1] = np.uint32(q)
@@ -252,8 +253,15 @@ def _union_all_leaf_components(
         # 更新该线程的写位置
         write_pos[tid] = pos
 
+    for tid in range(n_threads):
+        if overflow[tid] != 0:
+            raise ValueError(
+                "Legacy octree edge buffer overflow; connectivity result "
+                "was not produced"
+            )
+
     # 汇总所有线程的有效边对，执行并查集合并
-    for tid in range(N_THREADS):
+    for tid in range(n_threads):
         buf = thread_buffers[tid]
         count = write_pos[tid]
         for i in range(0, count, 2):
@@ -439,7 +447,8 @@ def percolation_masks_with_octree(void, grid_mask, grid_info, oct_soa_tuple):
     # print("debug1")
     _union_all_leaf_components(grid_info,grid_mask,oct_soa_tuple,
                                leaf_linear,leaf_root_linear,leaf_bucket,
-                               parent_leaf,rank_leaf,tol)
+                               parent_leaf,rank_leaf,tol,
+                               numba.get_num_threads())
     # print("debug2")
     _mark_leaf_flag_from_coarse(label_mask_coarse,grid_mask,grid_info,oct_soa_tuple,leaf_linear,leaf_root_linear,parent_leaf)
 

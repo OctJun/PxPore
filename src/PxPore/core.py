@@ -19,6 +19,7 @@ from .config import AnalyseConfig
 from .io_input import read_structure
 from .io_cube import write_cube
 from .octree_conectivity import percolation_masks_with_octree
+from .octree_connectivity_hybrid import percolation_masks_with_octree_hybrid
 from .octree import build_octree_forest
 from .surface import fibonacci_sphere_surface_area
 from .atoms import build_mass, build_radii_nm, load_atom_info, symbols_to_Z
@@ -70,18 +71,6 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         and config.psd_mc_bin_size <= 0
     ):
         raise ValueError("psd_mc_bin_size must be positive")
-    if (
-        not config.no_octree
-        and (
-            config.connectivity != "legacy"
-            or config.transport_direction != "any"
-        )
-    ):
-        raise ValueError(
-            "periodic or directional connectivity currently requires "
-            "no_octree=True / --no-octree"
-        )
-
     # -------------------- threads --------------------
     if config.threads and config.threads >= 1:
         set_num_threads(config.threads)
@@ -203,15 +192,49 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     # -------------------- volume analysis --------------------
     logger.info("[INFO] Running volume analysis")
     if oct_soa_tuple:
-        label_mask, uf_parent = percolation_masks_with_octree(
-            void, grid_mask, grid_info, oct_soa_tuple)
+        if (
+            config.connectivity == "legacy"
+            and config.transport_direction == "any"
+        ):
+            logger.info(
+                "[Connectivity] method=legacy-octree, "
+                "boundary=nonperiodic, direction=any"
+            )
+            label_mask, uf_parent = percolation_masks_with_octree(
+                void, grid_mask, grid_info, oct_soa_tuple)
+        else:
+            logger.info(
+                f"[Connectivity] method=hybrid-octree, "
+                f"boundary={config.connectivity}, "
+                f"direction={config.transport_direction}"
+            )
+            label_mask, uf_parent = percolation_masks_with_octree_hybrid(
+                void,
+                grid_mask,
+                grid_info,
+                oct_soa_tuple,
+                config.connectivity,
+                config.transport_direction,
+            )
     elif config.connectivity == "periodic":
+        logger.info(
+            f"[Connectivity] method=uniform-grid, boundary=periodic, "
+            f"direction={config.transport_direction}"
+        )
         label_mask, uf_parent = percolation_masks_periodic(
             void, config.transport_direction)
     elif config.transport_direction != "any":
+        logger.info(
+            f"[Connectivity] method=uniform-grid, boundary=nonperiodic, "
+            f"direction={config.transport_direction}"
+        )
         label_mask, uf_parent = percolation_masks_directional(
             void, config.transport_direction)
     else:
+        logger.info(
+            "[Connectivity] method=uniform-grid-legacy, "
+            "boundary=nonperiodic, direction=any"
+        )
         label_mask, uf_parent = percolation_masks(void)
 
     acc = (label_mask == LABEL_MASK_ACC)
