@@ -265,66 +265,84 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             pos, rad, box, config.probe, cell_size, grid_info, dmin)
         logger.info(f"[PORE] Fill {nfill} voxels")
 
-        logger.info("[PORE] Calculating maximum balls")
-
-        # prune = True if np.sum(acc) / (gx * gy * gz) < 0.5 else False 
-        nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
-            D_nm=dmin2,
-            acc_u8=acc,
-            grid_info=grid_info,
-            box=box,
-            rmin_center_nm=config.psd_min_center_radius,
-            strict_plateau=(config.psd_local_max_mode == "strict"),
-            prune=config.psd_overlap_prune,
-            k=12,
-            alpha=1.2,
-            max_dist_nm=None,
-            workers=-1,
-            overlap_threshold=config.psd_overlap_threshold,
-        )
-        logger.info(
-            f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: {2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm")
-        logger.info("[PORE] Calculating PLD")
-        pld, _, _ = pld_lcd_by_bisection_from_dmin(
-            dmin2, config.grid, config.probe,
-            connectivity=config.connectivity,
-            transport_direction=config.transport_direction,
-        )
-        lcd = 2 * r_nm.max()
-        lcd_global = 2 * np.max(dmin)
-        logger.info(f"[PORE] Calculating PSD using {config.psd_method}")
-        center_psd_data, center_data = get_psd_from_centerline(
-            nodes_nm,
-            r_nm,
-            bin_size=config.grid,
-            weighting=config.psd_hist_weighting,
-        )
-        psd_data = None
-        voxel_psd_data = None
-        promoted_fraction = None
-        psd_mc_bin_size = None
-        if config.psd_method == "centers":
-            psd_data = center_psd_data
-        else:
-            psd_mc_bin_size = (
-                config.grid
-                if config.psd_mc_bin_size is None
-                else config.psd_mc_bin_size
+        if not np.any(acc):
+            logger.info(
+                "[PORE] No accessible pore voxels; using empty pore results"
             )
-            voxel_psd_data, promoted_fraction = get_psd_from_voxels_mc(
-                dmin2,
-                acc,
-                grid_info,
-                bin_size=psd_mc_bin_size,
-                n_samples=config.psd_mc_samples,
-                seed=config.psd_mc_seed,
+            nodes_nm = np.empty((0, 3), dtype=np.float32)
+            r_nm = np.empty(0, dtype=np.float32)
+            edges = np.empty((0, 2), dtype=np.int32)
+            center_data = np.empty((0, 5), dtype=np.float64)
+            psd_data = np.empty((0, 5), dtype=np.float64)
+            voxel_psd_data = None
+            promoted_fraction = None
+            psd_mc_bin_size = None
+            pld = -1.0
+            lcd = -1.0
+            lcd_global = -1.0
+            pore_data = (pld, lcd, lcd_global)
+        else:
+            logger.info("[PORE] Calculating maximum balls")
+
+            nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
+                D_nm=dmin2,
+                acc_u8=acc,
+                grid_info=grid_info,
+                box=box,
+                rmin_center_nm=config.psd_min_center_radius,
+                strict_plateau=(config.psd_local_max_mode == "strict"),
+                prune=config.psd_overlap_prune,
+                k=12,
+                alpha=1.2,
+                max_dist_nm=None,
+                workers=-1,
+                overlap_threshold=config.psd_overlap_threshold,
             )
             logger.info(
-                f"[PORE] Samples promoted to a larger containing ball: "
-                f"{promoted_fraction:.2%}"
+                f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: "
+                f"{2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm"
             )
+            logger.info("[PORE] Calculating PLD")
+            pld, _, _ = pld_lcd_by_bisection_from_dmin(
+                dmin2, config.grid, config.probe,
+                connectivity=config.connectivity,
+                transport_direction=config.transport_direction,
+            )
+            lcd = 2 * r_nm.max()
+            lcd_global = 2 * np.max(dmin)
+            logger.info(f"[PORE] Calculating PSD using {config.psd_method}")
+            center_psd_data, center_data = get_psd_from_centerline(
+                nodes_nm,
+                r_nm,
+                bin_size=config.grid,
+                weighting=config.psd_hist_weighting,
+            )
+            psd_data = None
+            voxel_psd_data = None
+            promoted_fraction = None
+            psd_mc_bin_size = None
+            if config.psd_method == "centers":
+                psd_data = center_psd_data
+            else:
+                psd_mc_bin_size = (
+                    config.grid
+                    if config.psd_mc_bin_size is None
+                    else config.psd_mc_bin_size
+                )
+                voxel_psd_data, promoted_fraction = get_psd_from_voxels_mc(
+                    dmin2,
+                    acc,
+                    grid_info,
+                    bin_size=psd_mc_bin_size,
+                    n_samples=config.psd_mc_samples,
+                    seed=config.psd_mc_seed,
+                )
+                logger.info(
+                    f"[PORE] Samples promoted to a larger containing ball: "
+                    f"{promoted_fraction:.2%}"
+                )
 
-        pore_data = (pld, lcd, lcd_global)
+            pore_data = (pld, lcd, lcd_global)
 
         if config.stats:
             out_center = f"{out_parent_path}/{out_prefix}_center.txt"
