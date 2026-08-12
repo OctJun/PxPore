@@ -259,7 +259,14 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
     nodes_nm = nodes_nm[mask]
     r_nm = r_nm[mask]
 
-    keep = prune_balls(nodes_nm, r_nm, box,mode_flag=MODE_CONTAINED,eps=eps)
+    keep = prune_balls(
+        nodes_nm,
+        r_nm,
+        box,
+        mode_flag=MODE_CONTAINED,
+        eps=eps,
+        workers=workers,
+    )
     nodes_nm = nodes_nm[keep]
     r_nm = r_nm[keep]
 
@@ -270,6 +277,7 @@ def pore_centerline_from_distance_field(D_nm, acc_u8, grid_info, box,
             box,
             mode_flag=MODE_OVERLAP,
             eps=eps,
+            workers=workers,
             overlap_threshold=overlap_threshold,
         )
         nodes_nm = nodes_nm[keep]
@@ -336,8 +344,11 @@ def _largest_containing_radii_on_grid(
     dmin_nm,
     acc_u8,
     grid_info,
-    offsets,
+    offset_x,
+    offset_y,
+    offset_z,
     offset_distance2,
+    max_local_radius_nm,
 ):
     """为每个抽样体素并行查找包含它的最大体素球半径。"""
     gx, gy, gz, _, _, _ = grid_info
@@ -350,14 +361,20 @@ def _largest_containing_radii_on_grid(
         iy = rem // gz
         iz = rem % gz
         best = dmin_nm[ix, iy, iz]
+        if best >= max_local_radius_nm:
+            out[i] = best
+            continue
 
-        for j in range(offsets.shape[0]):
-            ox = offsets[j, 0]
-            oy = offsets[j, 1]
-            oz = offsets[j, 2]
-            cx = (ix + ox) % gx
-            cy = (iy + oy) % gy
-            cz = (iz + oz) % gz
+        for j in range(offset_x.size):
+            cx = ix + offset_x[j]
+            cy = iy + offset_y[j]
+            cz = iz + offset_z[j]
+            if cx >= gx:
+                cx -= gx
+            if cy >= gy:
+                cy -= gy
+            if cz >= gz:
+                cz -= gz
             if acc_u8[cx, cy, cz] == 0:
                 continue
             radius = dmin_nm[cx, cy, cz]
@@ -365,10 +382,55 @@ def _largest_containing_radii_on_grid(
                 continue
             if offset_distance2[j] <= radius * radius:
                 best = radius
+                if best >= max_local_radius_nm:
+                    break
 
         out[i] = best
 
     return out
+
+
+@njit(cache=True)
+def _build_spherical_offsets(
+    rx,
+    ry,
+    rz,
+    dgx,
+    dgy,
+    dgz,
+    gx,
+    gy,
+    gz,
+    max_radius2,
+):
+    count = 0
+    for ox in range(-rx, rx + 1):
+        dx2 = (ox * dgx) ** 2
+        for oy in range(-ry, ry + 1):
+            dxy2 = dx2 + (oy * dgy) ** 2
+            for oz in range(-rz, rz + 1):
+                distance2 = dxy2 + (oz * dgz) ** 2
+                if distance2 <= max_radius2:
+                    count += 1
+
+    offset_x = np.empty(count, dtype=np.int32)
+    offset_y = np.empty(count, dtype=np.int32)
+    offset_z = np.empty(count, dtype=np.int32)
+    offset_distance2 = np.empty(count, dtype=np.float32)
+    index = 0
+    for ox in range(-rx, rx + 1):
+        dx2 = (ox * dgx) ** 2
+        for oy in range(-ry, ry + 1):
+            dxy2 = dx2 + (oy * dgy) ** 2
+            for oz in range(-rz, rz + 1):
+                distance2 = dxy2 + (oz * dgz) ** 2
+                if distance2 <= max_radius2:
+                    offset_x[index] = ox % gx
+                    offset_y[index] = oy % gy
+                    offset_z[index] = oz % gz
+                    offset_distance2[index] = distance2
+                    index += 1
+    return offset_x, offset_y, offset_z, offset_distance2
 
 
 def get_psd_from_voxels_mc(
@@ -383,56 +445,53 @@ def get_psd_from_voxels_mc(
     从 accessible 体素中均匀抽样，并分配包含样本的最大体素球。
     返回 PSD 数据和被更大包含球提升的样本比例。
     """
-    if bin_size <= 0:
-        raise ValueError("bin_size must be positive")
-    if n_samples <= 0:
-        raise ValueError("n_samples must be positive")
-
-    dmin_nm = np.asarray(dmin_nm)
-    acc_u8 = np.asarray(acc_u8)
-    if dmin_nm.shape != acc_u8.shape:
-        raise ValueError("dmin_nm and acc_u8 must have the same shape")
-
-    valid = (acc_u8 != 0) & np.isfinite(dmin_nm) & (dmin_nm > 0)
-    valid_flat = np.flatnonzero(valid)
-    if valid_flat.size == 0:
-        raise ValueError("No accessible voxels with positive pore radius")
+    valid_flat = np.flatnonzero(acc_u8.ravel()).astype(
+        np.int32, copy=False)
     max_local_radius_nm = float(
-        np.max(dmin_nm, where=valid, initial=0.0))
+        np.max(dmin_nm, where=acc_u8, initial=0.0))
 
     rng = np.random.default_rng(seed)
     sampled_flat = valid_flat[
         rng.integers(0, valid_flat.size, size=n_samples)
     ]
-    local_radii_nm = dmin_nm.ravel()[sampled_flat].astype(np.float64)
-    del valid_flat, valid
+    sampled_flat.sort()
+    local_radii_nm = dmin_nm.ravel()[sampled_flat]
+    del valid_flat
 
     _, _, _, dgx, dgy, dgz = grid_info
     rx = int(np.ceil(max_local_radius_nm / dgx))
     ry = int(np.ceil(max_local_radius_nm / dgy))
     rz = int(np.ceil(max_local_radius_nm / dgz))
-    offsets = []
-    offset_distance2 = []
-    max_r2 = max_local_radius_nm * max_local_radius_nm
-    for ox in range(-rx, rx + 1):
-        dx2 = (ox * dgx) ** 2
-        for oy in range(-ry, ry + 1):
-            dxy2 = dx2 + (oy * dgy) ** 2
-            for oz in range(-rz, rz + 1):
-                distance2 = dxy2 + (oz * dgz) ** 2
-                if distance2 <= max_r2:
-                    offsets.append((ox, oy, oz))
-                    offset_distance2.append(distance2)
-    offsets = np.asarray(offsets, dtype=np.int32)
-    offset_distance2 = np.asarray(offset_distance2, dtype=np.float32)
+    offset_x, offset_y, offset_z, offset_distance2 = (
+        _build_spherical_offsets(
+            rx,
+            ry,
+            rz,
+            dgx,
+            dgy,
+            dgz,
+            dmin_nm.shape[0],
+            dmin_nm.shape[1],
+            dmin_nm.shape[2],
+            max_local_radius_nm * max_local_radius_nm,
+        )
+    )
+    offset_order = np.argsort(offset_distance2)
+    offset_x = offset_x[offset_order]
+    offset_y = offset_y[offset_order]
+    offset_z = offset_z[offset_order]
+    offset_distance2 = offset_distance2[offset_order]
 
     assigned_radii_nm = _largest_containing_radii_on_grid(
         sampled_flat,
-        np.asarray(dmin_nm, dtype=np.float32),
-        np.asarray(acc_u8, dtype=np.uint8),
+        dmin_nm,
+        acc_u8,
         grid_info,
-        offsets,
+        offset_x,
+        offset_y,
+        offset_z,
         offset_distance2,
+        max_local_radius_nm,
     )
     sampled_diameters_nm = 2.0 * assigned_radii_nm
     promoted_fraction = float(

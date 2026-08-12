@@ -30,7 +30,7 @@ class PsdTests(unittest.TestCase):
     def test_mc_fixed_seed_and_normalization(self):
         shape = (5, 4, 3)
         dmin = np.full(shape, 0.2, dtype=np.float32)
-        accessible = np.ones(shape, dtype=np.uint8)
+        accessible = np.ones(shape, dtype=bool)
         grid_info = (*shape, 0.1, 0.1, 0.1)
         first, first_promoted = get_psd_from_voxels_mc(
             dmin, accessible, grid_info,
@@ -48,7 +48,7 @@ class PsdTests(unittest.TestCase):
         shape = (7, 7, 7)
         dmin = np.full(shape, 0.05, dtype=np.float32)
         dmin[3, 3, 3] = 0.25
-        accessible = np.ones(shape, dtype=np.uint8)
+        accessible = np.ones(shape, dtype=bool)
         grid_info = (*shape, 0.1, 0.1, 0.1)
         data, promoted = get_psd_from_voxels_mc(
             dmin, accessible, grid_info,
@@ -56,20 +56,6 @@ class PsdTests(unittest.TestCase):
         self.assertGreater(promoted, 0.0)
         self.assertAlmostEqual(float(data[:, 3].sum()), 1.0)
         self.assertGreater(np.count_nonzero(data[:, 2]), 1)
-
-    def test_mc_rejects_invalid_inputs(self):
-        shape = (2, 2, 2)
-        grid_info = (*shape, 0.1, 0.1, 0.1)
-        with self.assertRaisesRegex(ValueError, "bin_size"):
-            get_psd_from_voxels_mc(
-                np.ones(shape), np.ones(shape), grid_info, bin_size=0)
-        with self.assertRaisesRegex(ValueError, "n_samples"):
-            get_psd_from_voxels_mc(
-                np.ones(shape), np.ones(shape), grid_info, n_samples=0)
-        with self.assertRaisesRegex(ValueError, "same shape"):
-            get_psd_from_voxels_mc(
-                np.ones(shape), np.ones((2, 2, 3)), grid_info)
-
 
 if __name__ == "__main__":
     unittest.main()

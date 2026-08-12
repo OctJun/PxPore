@@ -50,8 +50,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         raise ValueError("connectivity must be one of: legacy, periodic")
     if config.transport_direction not in ("any", "x", "y", "z"):
         raise ValueError("transport_direction must be one of: any, x, y, z")
-    if config.psd_method not in ("centers", "mc"):
-        raise ValueError("psd_method must be one of: centers, mc")
+    if config.psd_method not in ("centers", "mc", "both"):
+        raise ValueError("psd_method must be one of: centers, mc, both")
     if config.psd_local_max_mode not in ("strict", "plateau"):
         raise ValueError(
             "psd_local_max_mode must be one of: strict, plateau")
@@ -62,7 +62,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     if config.psd_hist_weighting not in ("volume", "number"):
         raise ValueError(
             "psd_hist_weighting must be one of: volume, number")
-    if config.psd_method == "mc" and config.psd_mc_samples <= 0:
+    if config.psd_method in ("mc", "both") and config.psd_mc_samples <= 0:
         raise ValueError("psd_mc_samples must be positive")
     if config.surface_samples <= 0:
         raise ValueError("surface_samples must be positive")
@@ -258,6 +258,11 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
     r_nm = None
     keep_idx = None
     pore_data = None
+    center_data = None
+    psd_data = None
+    voxel_psd_data = None
+    promoted_fraction = None
+    psd_mc_bin_size = None
 
     if config.pore:
         logger.info("[INFO] Running pore analysis")
@@ -272,58 +277,72 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             nodes_nm = np.empty((0, 3), dtype=np.float32)
             r_nm = np.empty(0, dtype=np.float32)
             edges = np.empty((0, 2), dtype=np.int32)
-            center_data = np.empty((0, 5), dtype=np.float64)
-            psd_data = np.empty((0, 5), dtype=np.float64)
-            voxel_psd_data = None
-            promoted_fraction = None
-            psd_mc_bin_size = None
+            if config.psd_method in ("centers", "both"):
+                center_data = np.empty((0, 5), dtype=np.float64)
+                psd_data = np.empty((0, 5), dtype=np.float64)
+            if config.psd_method in ("mc", "both"):
+                psd_mc_bin_size = (
+                    config.grid
+                    if config.psd_mc_bin_size is None
+                    else config.psd_mc_bin_size
+                )
+                voxel_psd_data = np.empty((0, 7), dtype=np.float64)
+                promoted_fraction = 0.0
             pld = -1.0
             lcd = -1.0
             lcd_global = -1.0
             pore_data = (pld, lcd, lcd_global)
         else:
-            logger.info("[PORE] Calculating maximum balls")
-
-            nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
-                D_nm=dmin2,
-                acc_u8=acc,
-                grid_info=grid_info,
-                box=box,
-                rmin_center_nm=config.psd_min_center_radius,
-                strict_plateau=(config.psd_local_max_mode == "strict"),
-                prune=config.psd_overlap_prune,
-                k=12,
-                alpha=1.2,
-                max_dist_nm=None,
-                workers=-1,
-                overlap_threshold=config.psd_overlap_threshold,
-            )
-            logger.info(
-                f"[PORE] Found {nodes_nm.shape[0]} nodes, pore size range: "
-                f"{2*r_nm.min():.3f} - {2*r_nm.max():.3f} nm"
-            )
             logger.info("[PORE] Calculating PLD")
             pld, _, _ = pld_lcd_by_bisection_from_dmin(
                 dmin2, config.grid, config.probe,
                 connectivity=config.connectivity,
                 transport_direction=config.transport_direction,
             )
-            lcd = 2 * r_nm.max()
+            # MC has no center nodes. Its LCD fallback is the largest local
+            # accessible diameter; centers/both retain the historical maximum
+            # retained-ball definition when at least one center is found.
+            lcd = 2 * np.max(dmin2[acc])
             lcd_global = 2 * np.max(dmin)
             logger.info(f"[PORE] Calculating PSD using {config.psd_method}")
-            center_psd_data, center_data = get_psd_from_centerline(
-                nodes_nm,
-                r_nm,
-                bin_size=config.grid,
-                weighting=config.psd_hist_weighting,
-            )
-            psd_data = None
-            voxel_psd_data = None
-            promoted_fraction = None
-            psd_mc_bin_size = None
-            if config.psd_method == "centers":
-                psd_data = center_psd_data
-            else:
+
+            if config.psd_method in ("centers", "both"):
+                logger.info("[PORE] Calculating maximum balls")
+                nodes_nm, r_nm, edges = pore_centerline_from_distance_field(
+                    D_nm=dmin2,
+                    acc_u8=acc,
+                    grid_info=grid_info,
+                    box=box,
+                    rmin_center_nm=config.psd_min_center_radius,
+                    strict_plateau=(config.psd_local_max_mode == "strict"),
+                    prune=config.psd_overlap_prune,
+                    k=12,
+                    alpha=1.2,
+                    max_dist_nm=None,
+                    workers=get_num_threads(),
+                    overlap_threshold=config.psd_overlap_threshold,
+                )
+                if r_nm.size == 0:
+                    logger.info(
+                        "[PORE] No maximum balls matched the center criteria"
+                    )
+                    center_data = np.empty((0, 5), dtype=np.float64)
+                    psd_data = np.empty((0, 5), dtype=np.float64)
+                else:
+                    logger.info(
+                        f"[PORE] Found {nodes_nm.shape[0]} nodes, "
+                        f"pore size range: {2*r_nm.min():.3f} - "
+                        f"{2*r_nm.max():.3f} nm"
+                    )
+                    psd_data, center_data = get_psd_from_centerline(
+                        nodes_nm,
+                        r_nm,
+                        bin_size=config.grid,
+                        weighting=config.psd_hist_weighting,
+                    )
+                    lcd = 2 * r_nm.max()
+
+            if config.psd_method in ("mc", "both"):
                 psd_mc_bin_size = (
                     config.grid
                     if config.psd_mc_bin_size is None
@@ -345,7 +364,6 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             pore_data = (pld, lcd, lcd_global)
 
         if config.stats:
-            out_center = f"{out_parent_path}/{out_prefix}_center.txt"
             if psd_data is not None:
                 out_psd = f"{out_parent_path}/{out_prefix}_psd.txt"
                 np.savetxt(
@@ -384,25 +402,28 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                     delimiter="\t",
                     comments="#",
                 )
-            center_xyz = np.column_stack((
-                np.full(center_data.shape[0], "He", dtype=object),
-                center_data[:, 1] * 10.0,
-                center_data[:, 2] * 10.0,
-                center_data[:, 3] * 10.0,
-                center_data[:, 4],
-            ))
-            np.savetxt(
-                out_center,
-                center_xyz,
-                fmt=["%s", "%.6f", "%.6f", "%.6f", "%.6f"],
-                header=(
-                    f"{center_data.shape[0]}\n"
-                    "Properties=species:S:1:pos:R:3:diameter_nm:R:1 "
-                    f"Lattice=\"{box[0] * 10:.6f} 0 0 0 {box[1] * 10:.6f} 0 0 0 {box[2] * 10:.6f}\" "
-                    "pbc=\"T T T\""
-                ),
-                comments="",
-            )
+            if center_data is not None:
+                out_center = f"{out_parent_path}/{out_prefix}_center.txt"
+                center_xyz = np.column_stack((
+                    np.full(center_data.shape[0], "He", dtype=object),
+                    center_data[:, 1] * 10.0,
+                    center_data[:, 2] * 10.0,
+                    center_data[:, 3] * 10.0,
+                    center_data[:, 4],
+                ))
+                np.savetxt(
+                    out_center,
+                    center_xyz,
+                    fmt=["%s", "%.6f", "%.6f", "%.6f", "%.6f"],
+                    header=(
+                        f"{center_data.shape[0]}\n"
+                        "Properties=species:S:1:pos:R:3:diameter_nm:R:1 "
+                        f"Lattice=\"{box[0] * 10:.6f} 0 0 0 "
+                        f"{box[1] * 10:.6f} 0 0 0 {box[2] * 10:.6f}\" "
+                        "pbc=\"T T T\""
+                    ),
+                    comments="",
+                )
 
     timings["pore"] = time.perf_counter()
 
@@ -423,7 +444,12 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
             np.float32) if dmin2 is not None else dmin.astype(np.float32)
         pore_vis_out = None
 
-        if config.porevis and config.pore:
+        if (
+            config.porevis
+            and config.pore
+            and nodes_nm is not None
+            and r_nm is not None
+        ):
             pore_vis_out = filter_dmin_by_maxiaum_ball(
                 dmin2, nodes_nm, r_nm, grid_info, box)
 

@@ -133,7 +133,7 @@ result = analyse(
 - `--surface-samples`: Fibonacci surface samples per atom; default is `1000`.
 - `--pore`: enable pore analysis.
 - `--porevis`: write pore-visualization output.
-- `--psd-method`: PSD method, `centers` (default) or `mc`.
+- `--psd-method`: PSD method, `centers` (default), `mc`, or `both`.
 - `--psd-mc-samples`: Monte Carlo PSD sample count; default is `50000`.
 - `--psd-mc-seed`: Monte Carlo PSD random seed; default is `11451466`.
 - `--psd-mc-bin-size`: Monte Carlo PSD bin size in nm; default uses `--grid`.

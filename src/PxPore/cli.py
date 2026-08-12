@@ -42,7 +42,7 @@ def build_parser():
                     default=False, help="enable pore analysis")
     ap.add_argument("--porevis", action="store_true", default=False,
                     help="enableing output visulization of pore")
-    ap.add_argument("--psd-method", choices=("centers", "mc"),
+    ap.add_argument("--psd-method", choices=("centers", "mc", "both"),
                     default="centers", help="pore-size distribution method")
     ap.add_argument("--psd-mc-samples", type=int, default=50000,
                     help="number of samples for Monte Carlo PSD")

@@ -123,7 +123,7 @@ result = analyse(
 - `--surface-samples`：每个原子的 Fibonacci 表面积采样点数；默认值为 `1000`。
 - `--pore`：启用孔隙分析。
 - `--porevis`：输出孔隙可视化结果。
-- `--psd-method`：PSD 方法，可选 `centers`（默认）或 `mc`。
+- `--psd-method`：PSD 方法，可选 `centers`（默认）、`mc` 或 `both`。
 - `--psd-mc-samples`：Monte Carlo PSD 采样数；默认值为 `50000`。
 - `--psd-mc-seed`：Monte Carlo PSD 随机种子；默认值为 `11451466`。
 - `--psd-mc-bin-size`：Monte Carlo PSD 的 bin 宽，单位 nm；默认使用网格间距。

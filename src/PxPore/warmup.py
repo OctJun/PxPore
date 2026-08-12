@@ -1,38 +1,40 @@
 import os
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 import platform
-import shutil
 
 from . import APP_NAME, __version__
 
 
 def run_warmup():
-    cache_dir = Path(__file__).resolve().parent / "__pycache__"
-    if cache_dir.exists():
-        try:
-            shutil.rmtree(cache_dir)
-        except Exception as exc:
-            print(
-                f"[PxPore] Warmup cache cleanup skipped: {type(exc).__name__}: {exc}",
-                file=sys.stderr,
-            )
     env = os.environ.copy()
     env["PXPORE_IN_WARMUP"] = "1"
     env.setdefault("NUMBA_THREADING_LAYER", "omp")
-    example_structure = (
-        Path(__file__).resolve().parents[2] / "tests" / "data" / "single_H.gro"
-    )
-    cmd = [sys.executable, "-m",
-           "PxPore.cli",
-           str(example_structure),
-           "--pore",
-           "--g", "0.05",
-           "--oct-level", "2",
-           "--probe", "0.01"]
-    print("[PxPore] First-time warmup: running", " ".join(cmd))
-    subprocess.run(cmd, check=True, env=env, stdout=subprocess.DEVNULL)
+    example_structure = files("PxPore").joinpath("data", "single_H.gro")
+    common = [
+        sys.executable, "-m", "PxPore.cli", str(example_structure),
+        "--g", "0.05",
+        "--probe", "0.01",
+        "--threads", "1",
+        "--surface-samples", "64",
+        "--oct-level", "2",
+        "--oct-grid", "0.01",
+    ]
+    variants = [
+        ["--pore", "--psd-method", "both", "--psd-mc-samples", "256"],
+        ["--pore", "--psd-method", "both", "--psd-mc-samples", "256",
+         "--connectivity", "periodic", "--transport-direction", "x"],
+        ["--no-octree"],
+        ["--no-octree", "--transport-direction", "x"],
+        ["--no-octree", "--connectivity", "periodic",
+         "--transport-direction", "x"],
+    ]
+    for args in variants:
+        cmd = common + args
+        print("[PxPore] First-time warmup: running", " ".join(cmd))
+        subprocess.run(cmd, check=True, env=env, stdout=subprocess.DEVNULL)
 
 
 def ensure_warmup(force=False):
