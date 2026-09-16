@@ -338,99 +338,196 @@ def get_psd_from_centerline(
     return psd_data, center_data
 
 
+@njit(cache=True)
+def _coarsen_max_2(field):
+    """对三维场做二倍最大值池化，并保留边界处的不完整块。"""
+    nx, ny, nz = field.shape
+    coarse = np.zeros(
+        ((nx + 1) // 2, (ny + 1) // 2, (nz + 1) // 2),
+        dtype=np.float32,
+    )
+    for i in range(coarse.shape[0]):
+        for j in range(coarse.shape[1]):
+            for k in range(coarse.shape[2]):
+                value = np.float32(0.0)
+                for di in range(2):
+                    ii = 2 * i + di
+                    if ii >= nx:
+                        continue
+                    for dj in range(2):
+                        jj = 2 * j + dj
+                        if jj >= ny:
+                            continue
+                        for dk in range(2):
+                            kk = 2 * k + dk
+                            if kk < nz and field[ii, jj, kk] > value:
+                                value = field[ii, jj, kk]
+                coarse[i, j, k] = value
+    return coarse
+
+
+def _build_max_radius_pyramid(dmin_nm, acc_u8):
+    """构建展平的最大半径金字塔，用于精确的分支限界搜索。"""
+    base = np.where(acc_u8 != 0, dmin_nm, 0.0).astype(
+        np.float32, copy=False
+    )
+    levels = [np.ascontiguousarray(base)]
+    while max(levels[-1].shape) > 1:
+        levels.append(_coarsen_max_2(levels[-1]))
+
+    shapes = np.asarray([level.shape for level in levels], dtype=np.int32)
+    offsets = np.empty(len(levels), dtype=np.int64)
+    offset = 0
+    flattened = []
+    for i in range(len(levels)):
+        offsets[i] = offset
+        values = levels[i].ravel()
+        flattened.append(values)
+        offset += values.size
+    data = np.concatenate(flattened)
+    return data, offsets, shapes
+
+
+@njit(inline="always")
+def _distance_to_periodic_index_interval(q, lo, hi, period):
+    """计算周期边界下格点 q 到闭区间 [lo, hi] 的最短距离。"""
+    best = period
+    for shift in (-period, 0, period):
+        shifted = q + shift
+        if shifted < lo:
+            distance = lo - shifted
+        elif shifted > hi:
+            distance = shifted - hi
+        else:
+            return 0
+        if distance < best:
+            best = distance
+    return best
+
+
 @njit(parallel=True, cache=True)
-def _largest_containing_radii_on_grid(
+def _largest_containing_radii_from_pyramid(
     sampled_flat,
-    dmin_nm,
-    acc_u8,
+    local_radii_nm,
+    pyramid_data,
+    level_offsets,
+    level_shapes,
     grid_info,
-    offset_x,
-    offset_y,
-    offset_z,
-    offset_distance2,
-    max_local_radius_nm,
 ):
-    """为每个抽样体素并行查找包含它的最大体素球半径。"""
-    gx, gy, gz, _, _, _ = grid_info
+    """使用层次上界精确查询包含每个样本的最大体素球。"""
+    gx, gy, gz, dgx, dgy, dgz = grid_info
+    gyz = gy * gz
+    n_levels = level_shapes.shape[0]
+    stack_size = 8 * n_levels + 8
     out = np.empty(sampled_flat.size, dtype=np.float32)
 
     for i in prange(sampled_flat.size):
         flat = sampled_flat[i]
-        ix = flat // (gy * gz)
-        rem = flat % (gy * gz)
+        ix = flat // gyz
+        rem = flat % gyz
         iy = rem // gz
         iz = rem % gz
-        best = dmin_nm[ix, iy, iz]
-        if best >= max_local_radius_nm:
-            out[i] = best
-            continue
+        best = local_radii_nm[i]
 
-        for j in range(offset_x.size):
-            cx = ix + offset_x[j]
-            cy = iy + offset_y[j]
-            cz = iz + offset_z[j]
-            if cx >= gx:
-                cx -= gx
-            if cy >= gy:
-                cy -= gy
-            if cz >= gz:
-                cz -= gz
-            if acc_u8[cx, cy, cz] == 0:
+        stack_level = np.empty(stack_size, dtype=np.int16)
+        stack_x = np.empty(stack_size, dtype=np.int32)
+        stack_y = np.empty(stack_size, dtype=np.int32)
+        stack_z = np.empty(stack_size, dtype=np.int32)
+        stack_count = 1
+        stack_level[0] = n_levels - 1
+        stack_x[0] = 0
+        stack_y[0] = 0
+        stack_z[0] = 0
+
+        while stack_count > 0:
+            stack_count -= 1
+            level = stack_level[stack_count]
+            bx = stack_x[stack_count]
+            by = stack_y[stack_count]
+            bz = stack_z[stack_count]
+            sy = level_shapes[level, 1]
+            sz = level_shapes[level, 2]
+            node_flat = (bx * sy + by) * sz + bz
+            node_radius = pyramid_data[level_offsets[level] + node_flat]
+            if node_radius <= best:
                 continue
-            radius = dmin_nm[cx, cy, cz]
-            if radius <= best:
+
+            scale = 1 << level
+            xlo = bx * scale
+            ylo = by * scale
+            zlo = bz * scale
+            xhi = min((bx + 1) * scale - 1, gx - 1)
+            yhi = min((by + 1) * scale - 1, gy - 1)
+            zhi = min((bz + 1) * scale - 1, gz - 1)
+            dx = _distance_to_periodic_index_interval(ix, xlo, xhi, gx)
+            dy = _distance_to_periodic_index_interval(iy, ylo, yhi, gy)
+            dz = _distance_to_periodic_index_interval(iz, zlo, zhi, gz)
+            min_distance2 = (
+                (dx * dgx) ** 2
+                + (dy * dgy) ** 2
+                + (dz * dgz) ** 2
+            )
+            if min_distance2 > node_radius * node_radius:
                 continue
-            if offset_distance2[j] <= radius * radius:
-                best = radius
-                if best >= max_local_radius_nm:
-                    break
+
+            if level == 0:
+                best = node_radius
+                continue
+
+            child_level = level - 1
+            child_sx = level_shapes[child_level, 0]
+            child_sy = level_shapes[child_level, 1]
+            child_sz = level_shapes[child_level, 2]
+            child_count = 0
+            child_radii = np.empty(8, dtype=np.float32)
+            child_x = np.empty(8, dtype=np.int32)
+            child_y = np.empty(8, dtype=np.int32)
+            child_z = np.empty(8, dtype=np.int32)
+            for ii in range(2):
+                cx = 2 * bx + ii
+                if cx >= child_sx:
+                    continue
+                for jj in range(2):
+                    cy = 2 * by + jj
+                    if cy >= child_sy:
+                        continue
+                    for kk in range(2):
+                        cz = 2 * bz + kk
+                        if cz >= child_sz:
+                            continue
+                        child_flat = (cx * child_sy + cy) * child_sz + cz
+                        radius = pyramid_data[
+                            level_offsets[child_level] + child_flat
+                        ]
+                        if radius <= best:
+                            continue
+                        insert_at = child_count
+                        while (
+                            insert_at > 0
+                            and child_radii[insert_at - 1] < radius
+                        ):
+                            child_radii[insert_at] = child_radii[insert_at - 1]
+                            child_x[insert_at] = child_x[insert_at - 1]
+                            child_y[insert_at] = child_y[insert_at - 1]
+                            child_z[insert_at] = child_z[insert_at - 1]
+                            insert_at -= 1
+                        child_radii[insert_at] = radius
+                        child_x[insert_at] = cx
+                        child_y[insert_at] = cy
+                        child_z[insert_at] = cz
+                        child_count += 1
+
+            # 先压入半径较小的子节点，使半径最大的子节点优先访问。
+            for j in range(child_count - 1, -1, -1):
+                stack_level[stack_count] = child_level
+                stack_x[stack_count] = child_x[j]
+                stack_y[stack_count] = child_y[j]
+                stack_z[stack_count] = child_z[j]
+                stack_count += 1
 
         out[i] = best
 
     return out
-
-
-@njit(cache=True)
-def _build_spherical_offsets(
-    rx,
-    ry,
-    rz,
-    dgx,
-    dgy,
-    dgz,
-    gx,
-    gy,
-    gz,
-    max_radius2,
-):
-    count = 0
-    for ox in range(-rx, rx + 1):
-        dx2 = (ox * dgx) ** 2
-        for oy in range(-ry, ry + 1):
-            dxy2 = dx2 + (oy * dgy) ** 2
-            for oz in range(-rz, rz + 1):
-                distance2 = dxy2 + (oz * dgz) ** 2
-                if distance2 <= max_radius2:
-                    count += 1
-
-    offset_x = np.empty(count, dtype=np.int32)
-    offset_y = np.empty(count, dtype=np.int32)
-    offset_z = np.empty(count, dtype=np.int32)
-    offset_distance2 = np.empty(count, dtype=np.float32)
-    index = 0
-    for ox in range(-rx, rx + 1):
-        dx2 = (ox * dgx) ** 2
-        for oy in range(-ry, ry + 1):
-            dxy2 = dx2 + (oy * dgy) ** 2
-            for oz in range(-rz, rz + 1):
-                distance2 = dxy2 + (oz * dgz) ** 2
-                if distance2 <= max_radius2:
-                    offset_x[index] = ox % gx
-                    offset_y[index] = oy % gy
-                    offset_z[index] = oz % gz
-                    offset_distance2[index] = distance2
-                    index += 1
-    return offset_x, offset_y, offset_z, offset_distance2
 
 
 def get_psd_from_voxels_mc(
@@ -457,41 +554,17 @@ def get_psd_from_voxels_mc(
     sampled_flat.sort()
     local_radii_nm = dmin_nm.ravel()[sampled_flat]
     del valid_flat
-
-    _, _, _, dgx, dgy, dgz = grid_info
-    rx = int(np.ceil(max_local_radius_nm / dgx))
-    ry = int(np.ceil(max_local_radius_nm / dgy))
-    rz = int(np.ceil(max_local_radius_nm / dgz))
-    offset_x, offset_y, offset_z, offset_distance2 = (
-        _build_spherical_offsets(
-            rx,
-            ry,
-            rz,
-            dgx,
-            dgy,
-            dgz,
-            dmin_nm.shape[0],
-            dmin_nm.shape[1],
-            dmin_nm.shape[2],
-            max_local_radius_nm * max_local_radius_nm,
-        )
+    pyramid_data, level_offsets, level_shapes = _build_max_radius_pyramid(
+        dmin_nm, acc_u8
     )
-    offset_order = np.argsort(offset_distance2)
-    offset_x = offset_x[offset_order]
-    offset_y = offset_y[offset_order]
-    offset_z = offset_z[offset_order]
-    offset_distance2 = offset_distance2[offset_order]
 
-    assigned_radii_nm = _largest_containing_radii_on_grid(
+    assigned_radii_nm = _largest_containing_radii_from_pyramid(
         sampled_flat,
-        dmin_nm,
-        acc_u8,
+        local_radii_nm,
+        pyramid_data,
+        level_offsets,
+        level_shapes,
         grid_info,
-        offset_x,
-        offset_y,
-        offset_z,
-        offset_distance2,
-        max_local_radius_nm,
     )
     sampled_diameters_nm = 2.0 * assigned_radii_nm
     promoted_fraction = float(

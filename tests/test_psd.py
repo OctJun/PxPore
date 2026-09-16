@@ -57,5 +57,52 @@ class PsdTests(unittest.TestCase):
         self.assertAlmostEqual(float(data[:, 3].sum()), 1.0)
         self.assertGreater(np.count_nonzero(data[:, 2]), 1)
 
+    def test_mc_matches_exhaustive_voxel_ball_search(self):
+        shape = (6, 5, 4)
+        spacing = np.array([0.09, 0.11, 0.13])
+        grid_info = (*shape, *spacing)
+        rng = np.random.default_rng(20260916)
+        dmin = rng.uniform(0.02, 0.18, size=shape).astype(np.float32)
+        accessible = rng.random(shape) > 0.2
+        n_samples = 500
+        seed = 99173
+        bin_size = 0.02
+
+        data, promoted = get_psd_from_voxels_mc(
+            dmin,
+            accessible,
+            grid_info,
+            bin_size=bin_size,
+            n_samples=n_samples,
+            seed=seed,
+        )
+
+        valid_flat = np.flatnonzero(accessible.ravel())
+        sample_rng = np.random.default_rng(seed)
+        sampled_flat = valid_flat[
+            sample_rng.integers(0, valid_flat.size, size=n_samples)
+        ]
+        sample_xyz = np.column_stack(np.unravel_index(sampled_flat, shape))
+        center_xyz = np.column_stack(np.unravel_index(valid_flat, shape))
+        center_radii = dmin.ravel()[valid_flat]
+        assigned = np.empty(n_samples, dtype=np.float32)
+        box = np.asarray(shape) * spacing
+        for i in range(sample_xyz.shape[0]):
+            delta = np.abs(center_xyz - sample_xyz[i]) * spacing
+            delta = np.minimum(delta, box - delta)
+            contains = np.sum(delta * delta, axis=1) <= center_radii**2
+            assigned[i] = np.max(center_radii[contains])
+
+        n_bins = int(np.ceil((2.0 * center_radii.max()) / bin_size))
+        expected_hist, _ = np.histogram(
+            2.0 * assigned,
+            bins=np.arange(n_bins + 1) * bin_size,
+        )
+        np.testing.assert_array_equal(data[:, 2], expected_hist)
+        expected_promoted = np.mean(
+            assigned > dmin.ravel()[sampled_flat] + 1e-7
+        )
+        self.assertAlmostEqual(promoted, float(expected_promoted))
+
 if __name__ == "__main__":
     unittest.main()
