@@ -53,6 +53,8 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         raise ValueError("transport_direction must be one of: any, x, y, z")
     if config.psd_method not in ("centers", "mc", "both"):
         raise ValueError("psd_method must be one of: centers, mc, both")
+    if config.psd_mc_search not in ("pyramid", "offsets"):
+        raise ValueError("psd_mc_search must be one of: pyramid, offsets")
     if config.psd_local_max_mode not in ("strict", "plateau"):
         raise ValueError(
             "psd_local_max_mode must be one of: strict, plateau")
@@ -365,6 +367,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                     bin_size=psd_mc_bin_size,
                     n_samples=config.psd_mc_samples,
                     seed=config.psd_mc_seed,
+                    search=config.psd_mc_search,
                 )
                 logger.info(
                     f"[PORE] Samples promoted to a larger containing ball: "
@@ -403,6 +406,7 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                         "pb_density_per_nm cumulative\n"
                         f"samples={config.psd_mc_samples} "
                         f"seed={config.psd_mc_seed} "
+                        f"search={config.psd_mc_search} "
                         f"bin_size_nm={psd_mc_bin_size:.10f} "
                         f"larger_ball_fraction={promoted_fraction:.10f} "
                         f"pb_density_integral="

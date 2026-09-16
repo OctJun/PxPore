@@ -34,6 +34,7 @@ def analyse(
     psd_overlap_threshold: float = 1.0,
     psd_hist_weighting: str = "volume",
     psd_center_bin_size: float | None = None,
+    psd_mc_search: str = "pyramid",
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -52,6 +53,7 @@ def analyse(
         psd_overlap_threshold=psd_overlap_threshold,
         psd_hist_weighting=psd_hist_weighting,
         psd_center_bin_size=psd_center_bin_size,
+        psd_mc_search=psd_mc_search,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

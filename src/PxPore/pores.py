@@ -338,6 +338,102 @@ def get_psd_from_centerline(
     return psd_data, center_data
 
 
+@njit(parallel=True, cache=True)
+def _largest_containing_radii_on_grid(
+    sampled_flat,
+    dmin_nm,
+    acc_u8,
+    grid_info,
+    offset_x,
+    offset_y,
+    offset_z,
+    offset_distance2,
+    max_local_radius_nm,
+):
+    """使用原始偏移遍历法查找包含每个样本的最大体素球。"""
+    gx, gy, gz, _, _, _ = grid_info
+    out = np.empty(sampled_flat.size, dtype=np.float32)
+
+    for i in prange(sampled_flat.size):
+        flat = sampled_flat[i]
+        ix = flat // (gy * gz)
+        rem = flat % (gy * gz)
+        iy = rem // gz
+        iz = rem % gz
+        best = dmin_nm[ix, iy, iz]
+        if best >= max_local_radius_nm:
+            out[i] = best
+            continue
+
+        for j in range(offset_x.size):
+            cx = ix + offset_x[j]
+            cy = iy + offset_y[j]
+            cz = iz + offset_z[j]
+            if cx >= gx:
+                cx -= gx
+            if cy >= gy:
+                cy -= gy
+            if cz >= gz:
+                cz -= gz
+            if acc_u8[cx, cy, cz] == 0:
+                continue
+            radius = dmin_nm[cx, cy, cz]
+            if radius <= best:
+                continue
+            if offset_distance2[j] <= radius * radius:
+                best = radius
+                if best >= max_local_radius_nm:
+                    break
+
+        out[i] = best
+
+    return out
+
+
+@njit(cache=True)
+def _build_spherical_offsets(
+    rx,
+    ry,
+    rz,
+    dgx,
+    dgy,
+    dgz,
+    gx,
+    gy,
+    gz,
+    max_radius2,
+):
+    """构建原始搜索法使用的周期球形网格偏移。"""
+    count = 0
+    for ox in range(-rx, rx + 1):
+        dx2 = (ox * dgx) ** 2
+        for oy in range(-ry, ry + 1):
+            dxy2 = dx2 + (oy * dgy) ** 2
+            for oz in range(-rz, rz + 1):
+                distance2 = dxy2 + (oz * dgz) ** 2
+                if distance2 <= max_radius2:
+                    count += 1
+
+    offset_x = np.empty(count, dtype=np.int32)
+    offset_y = np.empty(count, dtype=np.int32)
+    offset_z = np.empty(count, dtype=np.int32)
+    offset_distance2 = np.empty(count, dtype=np.float32)
+    index = 0
+    for ox in range(-rx, rx + 1):
+        dx2 = (ox * dgx) ** 2
+        for oy in range(-ry, ry + 1):
+            dxy2 = dx2 + (oy * dgy) ** 2
+            for oz in range(-rz, rz + 1):
+                distance2 = dxy2 + (oz * dgz) ** 2
+                if distance2 <= max_radius2:
+                    offset_x[index] = ox % gx
+                    offset_y[index] = oy % gy
+                    offset_z[index] = oz % gz
+                    offset_distance2[index] = distance2
+                    index += 1
+    return offset_x, offset_y, offset_z, offset_distance2
+
+
 @njit(cache=True)
 def _coarsen_max_2(field):
     """对三维场做二倍最大值池化，并保留边界处的不完整块。"""
@@ -537,6 +633,7 @@ def get_psd_from_voxels_mc(
     bin_size=0.01,
     n_samples=50000,
     seed=11451466,
+    search="pyramid",
 ):
     """
     从 accessible 体素中均匀抽样，并分配包含样本的最大体素球。
@@ -554,18 +651,56 @@ def get_psd_from_voxels_mc(
     sampled_flat.sort()
     local_radii_nm = dmin_nm.ravel()[sampled_flat]
     del valid_flat
-    pyramid_data, level_offsets, level_shapes = _build_max_radius_pyramid(
-        dmin_nm, acc_u8
-    )
 
-    assigned_radii_nm = _largest_containing_radii_from_pyramid(
-        sampled_flat,
-        local_radii_nm,
-        pyramid_data,
-        level_offsets,
-        level_shapes,
-        grid_info,
-    )
+    if search == "offsets":
+        _, _, _, dgx, dgy, dgz = grid_info
+        rx = int(np.ceil(max_local_radius_nm / dgx))
+        ry = int(np.ceil(max_local_radius_nm / dgy))
+        rz = int(np.ceil(max_local_radius_nm / dgz))
+        offset_x, offset_y, offset_z, offset_distance2 = (
+            _build_spherical_offsets(
+                rx,
+                ry,
+                rz,
+                dgx,
+                dgy,
+                dgz,
+                dmin_nm.shape[0],
+                dmin_nm.shape[1],
+                dmin_nm.shape[2],
+                max_local_radius_nm * max_local_radius_nm,
+            )
+        )
+        offset_order = np.argsort(offset_distance2)
+        offset_x = offset_x[offset_order]
+        offset_y = offset_y[offset_order]
+        offset_z = offset_z[offset_order]
+        offset_distance2 = offset_distance2[offset_order]
+        assigned_radii_nm = _largest_containing_radii_on_grid(
+            sampled_flat,
+            dmin_nm,
+            acc_u8,
+            grid_info,
+            offset_x,
+            offset_y,
+            offset_z,
+            offset_distance2,
+            max_local_radius_nm,
+        )
+    elif search == "pyramid":
+        pyramid_data, level_offsets, level_shapes = (
+            _build_max_radius_pyramid(dmin_nm, acc_u8)
+        )
+        assigned_radii_nm = _largest_containing_radii_from_pyramid(
+            sampled_flat,
+            local_radii_nm,
+            pyramid_data,
+            level_offsets,
+            level_shapes,
+            grid_info,
+        )
+    else:
+        raise ValueError("search must be one of: pyramid, offsets")
     sampled_diameters_nm = 2.0 * assigned_radii_nm
     promoted_fraction = float(
         np.mean(assigned_radii_nm > local_radii_nm + 1e-7))
@@ -607,10 +742,9 @@ def get_poreblazer_psd_outputs(voxel_psd_data, bin_size_nm):
 
     diameters_angstrom = voxel_psd_data[:, 1] * 10.0
     # nm^-1 转为 A^-1，保证曲线积分在单位变换后保持不变。
-    # PoreBlazer 只输出累计曲线的内部中心差分点，不对末端做外推。
-    derivative_per_angstrom = voxel_psd_data[:-1, 5] / 10.0
+    derivative_per_angstrom = voxel_psd_data[:, 5] / 10.0
     differential = np.column_stack((
-        diameters_angstrom[:-1],
+        diameters_angstrom,
         derivative_per_angstrom,
     ))
 
@@ -622,10 +756,15 @@ def get_poreblazer_psd_outputs(voxel_psd_data, bin_size_nm):
         np.concatenate((
             np.array([-half_bin_angstrom], dtype=np.float64),
             diameters_angstrom,
+            np.array(
+                [diameters_angstrom[-1] + 10.0 * bin_size_nm],
+                dtype=np.float64,
+            ),
         )),
         np.concatenate((
             np.array([1.0], dtype=np.float64),
             remaining_fraction,
+            remaining_fraction[-1:],
         )),
     ))
     return differential, cumulative

@@ -58,6 +58,26 @@ class PsdTests(unittest.TestCase):
         self.assertAlmostEqual(float(data[:, 3].sum()), 1.0)
         self.assertGreater(np.count_nonzero(data[:, 2]), 1)
 
+    def test_mc_search_implementations_are_identical(self):
+        shape = (9, 8, 7)
+        rng = np.random.default_rng(81457)
+        dmin = rng.uniform(0.02, 0.24, size=shape).astype(np.float32)
+        accessible = rng.random(shape) > 0.25
+        grid_info = (*shape, 0.08, 0.09, 0.10)
+        kwargs = {
+            "bin_size": 0.025,
+            "n_samples": 4000,
+            "seed": 11451466,
+        }
+        pyramid, pyramid_promoted = get_psd_from_voxels_mc(
+            dmin, accessible, grid_info, search="pyramid", **kwargs
+        )
+        offsets, offsets_promoted = get_psd_from_voxels_mc(
+            dmin, accessible, grid_info, search="offsets", **kwargs
+        )
+        np.testing.assert_array_equal(pyramid, offsets)
+        self.assertEqual(pyramid_promoted, offsets_promoted)
+
     def test_mc_matches_exhaustive_voxel_ball_search(self):
         shape = (6, 5, 4)
         spacing = np.array([0.09, 0.11, 0.13])
@@ -123,16 +143,18 @@ class PsdTests(unittest.TestCase):
         )
 
         np.testing.assert_allclose(
-            differential[:, 0], [0.125, 0.375, 0.625]
+            differential[:, 0], [0.125, 0.375, 0.625, 0.875]
         )
         np.testing.assert_allclose(
-            differential[:, 1], [0.6, 1.0, 1.4]
+            differential[:, 1], [0.6, 1.0, 1.4, 0.8]
         )
         np.testing.assert_allclose(
-            cumulative[:, 0], [-0.125, 0.125, 0.375, 0.625, 0.875]
+            cumulative[:, 0], [
+                -0.125, 0.125, 0.375, 0.625, 0.875, 1.125
+            ]
         )
         np.testing.assert_allclose(
-            cumulative[:, 1], [1.0, 0.9, 0.7, 0.4, 0.0]
+            cumulative[:, 1], [1.0, 0.9, 0.7, 0.4, 0.0, 0.0]
         )
         central_difference = -(
             cumulative[2:, 1] - cumulative[:-2, 1]

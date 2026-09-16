@@ -44,3 +44,4 @@ class AnalyseConfig:
     psd_overlap_threshold: float = 1.0
     psd_hist_weighting: str = "volume"
     psd_center_bin_size: Optional[float] = None
+    psd_mc_search: str = "pyramid"
