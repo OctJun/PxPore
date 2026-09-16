@@ -46,6 +46,15 @@ class NoPoreTests(unittest.TestCase):
             self.assertEqual(stats["LCD_global_nm"], -1.0)
             self.assertTrue((root / "no_pore_stats.json").is_file())
             self.assertTrue((root / "no_pore_voxel_mc_psd.txt").is_file())
+            self.assertTrue(
+                (root / "no_pore_Network-accessible_psd.txt").is_file()
+            )
+            self.assertTrue(
+                (
+                    root
+                    / "no_pore_Network-accessible_psd_cumulative.txt"
+                ).is_file()
+            )
             self.assertFalse((root / "no_pore_center.txt").exists())
             self.assertFalse((root / "no_pore_psd.txt").exists())
 

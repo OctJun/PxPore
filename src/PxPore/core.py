@@ -25,6 +25,7 @@ from .surface import fibonacci_sphere_surface_area
 from .atoms import build_mass, build_radii_nm, load_atom_info, symbols_to_Z
 from .pores import (
     filter_dmin_by_maxiaum_ball,
+    get_poreblazer_psd_outputs,
     get_psd_from_centerline,
     get_psd_from_voxels_mc,
     pld_lcd_by_bisection_from_dmin,
@@ -410,6 +411,43 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                     ),
                     delimiter="\t",
                     comments="#",
+                )
+                pb_psd_data, pb_cumulative_data = (
+                    get_poreblazer_psd_outputs(
+                        voxel_psd_data, psd_mc_bin_size
+                    )
+                )
+                out_pb_psd = (
+                    f"{out_parent_path}/{out_prefix}_"
+                    "Network-accessible_psd.txt"
+                )
+                np.savetxt(
+                    out_pb_psd,
+                    pb_psd_data,
+                    fmt=["%.9f", "%.10e"],
+                    header=(
+                        "Derivative distribution function "
+                        "-dV(d)/dd vs d\n"
+                        "d_A\tminus_dV_dd_per_A"
+                    ),
+                    delimiter="\t",
+                    comments="# ",
+                )
+                out_pb_cumulative = (
+                    f"{out_parent_path}/{out_prefix}_"
+                    "Network-accessible_psd_cumulative.txt"
+                )
+                np.savetxt(
+                    out_pb_cumulative,
+                    pb_cumulative_data,
+                    fmt=["%.9f", "%.10e"],
+                    header=(
+                        "Cumulative accessible volume distribution "
+                        "as a function of probe diameter\n"
+                        "d_probe_A\tVolume_Fraction"
+                    ),
+                    delimiter="\t",
+                    comments="# ",
                 )
             if center_data is not None:
                 out_center = f"{out_parent_path}/{out_prefix}_center.txt"

@@ -593,6 +593,44 @@ def get_psd_from_voxels_mc(
     return data, promoted_fraction
 
 
+def get_poreblazer_psd_outputs(voxel_psd_data, bin_size_nm):
+    """将体素 MC PSD 转换为 PoreBlazer 的微分和累计输出格式。"""
+    voxel_psd_data = np.asarray(voxel_psd_data, dtype=np.float64)
+    half_bin_angstrom = 5.0 * bin_size_nm
+
+    if voxel_psd_data.shape[0] == 0:
+        differential = np.empty((0, 2), dtype=np.float64)
+        cumulative = np.array(
+            [[-half_bin_angstrom, 1.0]], dtype=np.float64
+        )
+        return differential, cumulative
+
+    diameters_angstrom = voxel_psd_data[:, 1] * 10.0
+    # nm^-1 转为 A^-1，保证曲线积分在单位变换后保持不变。
+    # PoreBlazer 只输出累计曲线的内部中心差分点，不对末端做外推。
+    derivative_per_angstrom = voxel_psd_data[:-1, 5] / 10.0
+    differential = np.column_stack((
+        diameters_angstrom[:-1],
+        derivative_per_angstrom,
+    ))
+
+    # PoreBlazer 累计曲线表示探针增大时剩余的可达体积分数。
+    remaining_fraction = np.clip(
+        1.0 - voxel_psd_data[:, 6], 0.0, 1.0
+    )
+    cumulative = np.column_stack((
+        np.concatenate((
+            np.array([-half_bin_angstrom], dtype=np.float64),
+            diameters_angstrom,
+        )),
+        np.concatenate((
+            np.array([1.0], dtype=np.float64),
+            remaining_fraction,
+        )),
+    ))
+    return differential, cumulative
+
+
 @njit(parallel=True, cache=True)
 def _fill_void_mask(dmin_nm, r_probe_nm, void_mask):
     nx, ny, nz = dmin_nm.shape

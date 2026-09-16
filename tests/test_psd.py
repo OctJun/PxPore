@@ -7,6 +7,7 @@ configure_test_threads()
 import numpy as np
 
 from PxPore.pores import (
+    get_poreblazer_psd_outputs,
     get_psd_from_centerline,
     get_psd_from_voxels_mc,
 )
@@ -103,6 +104,42 @@ class PsdTests(unittest.TestCase):
             assigned > dmin.ravel()[sampled_flat] + 1e-7
         )
         self.assertAlmostEqual(promoted, float(expected_promoted))
+
+    def test_poreblazer_outputs_use_angstrom_and_central_difference(self):
+        bin_size_nm = 0.025
+        probability = np.array([0.1, 0.2, 0.3, 0.4])
+        voxel_psd = np.zeros((4, 7), dtype=np.float64)
+        voxel_psd[:, 1] = (
+            np.arange(4, dtype=np.float64) + 0.5
+        ) * bin_size_nm
+        voxel_psd[:, 3] = probability
+        voxel_psd[:, 5] = (
+            probability + np.append(probability[1:], 0.0)
+        ) / (2.0 * bin_size_nm)
+        voxel_psd[:, 6] = np.cumsum(probability)
+
+        differential, cumulative = get_poreblazer_psd_outputs(
+            voxel_psd, bin_size_nm
+        )
+
+        np.testing.assert_allclose(
+            differential[:, 0], [0.125, 0.375, 0.625]
+        )
+        np.testing.assert_allclose(
+            differential[:, 1], [0.6, 1.0, 1.4]
+        )
+        np.testing.assert_allclose(
+            cumulative[:, 0], [-0.125, 0.125, 0.375, 0.625, 0.875]
+        )
+        np.testing.assert_allclose(
+            cumulative[:, 1], [1.0, 0.9, 0.7, 0.4, 0.0]
+        )
+        central_difference = -(
+            cumulative[2:, 1] - cumulative[:-2, 1]
+        ) / (2.0 * 0.25)
+        np.testing.assert_allclose(
+            differential[:, 1], central_difference
+        )
 
 if __name__ == "__main__":
     unittest.main()
