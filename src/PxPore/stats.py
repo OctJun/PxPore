@@ -48,6 +48,18 @@ def get_stats_and_envs(
             None if args.psd_mc_bin_size is None
             else float(args.psd_mc_bin_size)
         ),
+        "psd_mc_bin_size_effective_nm": float(
+            args.grid if args.psd_mc_bin_size is None
+            else args.psd_mc_bin_size
+        ),
+        "psd_center_bin_size_nm": (
+            None if args.psd_center_bin_size is None
+            else float(args.psd_center_bin_size)
+        ),
+        "psd_center_bin_size_effective_nm": float(
+            args.grid if args.psd_center_bin_size is None
+            else args.psd_center_bin_size
+        ),
         "psd_local_max_mode": str(args.psd_local_max_mode),
         "psd_min_center_radius_nm": float(args.psd_min_center_radius),
         "psd_overlap_prune": bool(args.psd_overlap_prune),

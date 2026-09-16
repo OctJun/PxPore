@@ -71,6 +71,11 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
         and config.psd_mc_bin_size <= 0
     ):
         raise ValueError("psd_mc_bin_size must be positive")
+    if (
+        config.psd_center_bin_size is not None
+        and config.psd_center_bin_size <= 0
+    ):
+        raise ValueError("psd_center_bin_size must be positive")
     # -------------------- threads --------------------
     if config.threads and config.threads >= 1:
         set_num_threads(config.threads)
@@ -337,7 +342,11 @@ def analyse(config: AnalyseConfig) -> dict[str, Any]:
                     psd_data, center_data = get_psd_from_centerline(
                         nodes_nm,
                         r_nm,
-                        bin_size=config.grid,
+                        bin_size=(
+                            config.grid
+                            if config.psd_center_bin_size is None
+                            else config.psd_center_bin_size
+                        ),
                         weighting=config.psd_hist_weighting,
                     )
                     lcd = 2 * r_nm.max()

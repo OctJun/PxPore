@@ -31,7 +31,7 @@ class AnalyseConfig:
     connectivity: str = "legacy"
     transport_direction: str = "any"
 
-    psd_method: str = "centers"
+    psd_method: str = "mc"
     psd_mc_samples: int = 50000
     psd_mc_seed: int = 11451466
     psd_mc_bin_size: Optional[float] = None
@@ -43,3 +43,4 @@ class AnalyseConfig:
     psd_overlap_prune: bool = True
     psd_overlap_threshold: float = 1.0
     psd_hist_weighting: str = "volume"
+    psd_center_bin_size: Optional[float] = None

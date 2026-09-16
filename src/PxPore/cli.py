@@ -43,13 +43,15 @@ def build_parser():
     ap.add_argument("--porevis", action="store_true", default=False,
                     help="enableing output visulization of pore")
     ap.add_argument("--psd-method", choices=("centers", "mc", "both"),
-                    default="centers", help="pore-size distribution method")
+                    default="mc", help="pore-size distribution method")
     ap.add_argument("--psd-mc-samples", type=int, default=50000,
                     help="number of samples for Monte Carlo PSD")
     ap.add_argument("--psd-mc-seed", type=int, default=11451466,
                     help="random seed for Monte Carlo PSD")
     ap.add_argument("--psd-mc-bin-size", type=float, default=None,
                     help="Monte Carlo PSD bin size in nm; default uses grid")
+    ap.add_argument("--psd-center-bin-size", type=float, default=None,
+                    help="center PSD bin size in nm; default uses grid")
     ap.add_argument(
         "--psd-local-max-mode",
         choices=("strict", "plateau"),
@@ -118,6 +120,7 @@ def namespace_to_config(args) -> AnalyseConfig:
         psd_mc_samples=args.psd_mc_samples,
         psd_mc_seed=args.psd_mc_seed,
         psd_mc_bin_size=args.psd_mc_bin_size,
+        psd_center_bin_size=args.psd_center_bin_size,
         psd_local_max_mode=args.psd_local_max_mode,
         psd_min_center_radius=args.psd_min_center_radius,
         psd_overlap_prune=args.psd_overlap_prune,

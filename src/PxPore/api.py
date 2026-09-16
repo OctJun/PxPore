@@ -23,7 +23,7 @@ def analyse(
     debug_print: bool = False,
     connectivity: str = "legacy",
     transport_direction: str = "any",
-    psd_method: str = "centers",
+    psd_method: str = "mc",
     psd_mc_samples: int = 50000,
     psd_mc_seed: int = 11451466,
     psd_mc_bin_size: float | None = None,
@@ -33,6 +33,7 @@ def analyse(
     psd_overlap_prune: bool = True,
     psd_overlap_threshold: float = 1.0,
     psd_hist_weighting: str = "volume",
+    psd_center_bin_size: float | None = None,
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -50,6 +51,7 @@ def analyse(
         psd_overlap_prune=psd_overlap_prune,
         psd_overlap_threshold=psd_overlap_threshold,
         psd_hist_weighting=psd_hist_weighting,
+        psd_center_bin_size=psd_center_bin_size,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

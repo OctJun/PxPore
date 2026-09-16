@@ -12,17 +12,18 @@ from PxPore.config import AnalyseConfig
 
 
 class ConfigAndCliTests(unittest.TestCase):
-    def test_new_defaults_preserve_legacy_behavior(self):
+    def test_current_defaults(self):
         cfg = namespace_to_config(
             build_parser().parse_args(["sample.gro"]))
         self.assertEqual(cfg.connectivity, "legacy")
         self.assertEqual(cfg.transport_direction, "any")
         self.assertFalse(cfg.no_octree)
         self.assertEqual(cfg.oct_level, 2)
-        self.assertEqual(cfg.psd_method, "centers")
+        self.assertEqual(cfg.psd_method, "mc")
         self.assertEqual(cfg.psd_mc_samples, 50000)
         self.assertEqual(cfg.psd_mc_seed, 11451466)
         self.assertIsNone(cfg.psd_mc_bin_size)
+        self.assertIsNone(cfg.psd_center_bin_size)
         self.assertEqual(cfg.surface_samples, 1000)
         self.assertEqual(cfg.psd_local_max_mode, "strict")
         self.assertEqual(cfg.psd_min_center_radius, 0.005)
@@ -40,6 +41,7 @@ class ConfigAndCliTests(unittest.TestCase):
             "--psd-mc-samples", "1234",
             "--psd-mc-seed", "99",
             "--psd-mc-bin-size", "0.025",
+            "--psd-center-bin-size", "0.03",
             "--psd-local-max-mode", "plateau",
             "--psd-min-center-radius", "0.02",
             "--no-psd-overlap-prune",
@@ -54,6 +56,7 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.psd_mc_samples, 1234)
         self.assertEqual(cfg.psd_mc_seed, 99)
         self.assertEqual(cfg.psd_mc_bin_size, 0.025)
+        self.assertEqual(cfg.psd_center_bin_size, 0.03)
         self.assertEqual(cfg.psd_local_max_mode, "plateau")
         self.assertEqual(cfg.psd_min_center_radius, 0.02)
         self.assertFalse(cfg.psd_overlap_prune)
@@ -69,7 +72,7 @@ class ConfigAndCliTests(unittest.TestCase):
             2,
         )
         names = list(inspect.signature(api_analyse).parameters)
-        self.assertEqual(names[-12:], [
+        self.assertEqual(names[-13:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -82,11 +85,12 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_overlap_prune",
             "psd_overlap_threshold",
             "psd_hist_weighting",
+            "psd_center_bin_size",
         ])
 
     def test_dataclass_parameters_are_appended(self):
         names = list(AnalyseConfig.__dataclass_fields__)
-        self.assertEqual(names[-12:], [
+        self.assertEqual(names[-13:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -99,6 +103,7 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_overlap_prune",
             "psd_overlap_threshold",
             "psd_hist_weighting",
+            "psd_center_bin_size",
         ])
 
     def test_invalid_new_values_fail_before_input(self):
@@ -108,6 +113,8 @@ class ConfigAndCliTests(unittest.TestCase):
             analyse("missing.gro", psd_method="mc", psd_mc_samples=0)
         with self.assertRaisesRegex(ValueError, "psd_mc_bin_size"):
             analyse("missing.gro", psd_mc_bin_size=0.0)
+        with self.assertRaisesRegex(ValueError, "psd_center_bin_size"):
+            analyse("missing.gro", psd_center_bin_size=0.0)
         with self.assertRaisesRegex(ValueError, "surface_samples"):
             analyse("missing.gro", surface_samples=0)
         with self.assertRaisesRegex(ValueError, "psd_local_max_mode"):

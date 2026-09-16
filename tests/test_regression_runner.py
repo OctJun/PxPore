@@ -133,7 +133,7 @@ class RegressionRunnerTests(unittest.TestCase):
                 },
                 "metrics": {
                     "settings.psd_method": {
-                        "reference": "centers",
+                        "reference": "mc",
                     },
                     "stats.Vacc_nm3": {
                         "reference": None,

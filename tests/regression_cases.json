@@ -84,6 +84,7 @@
         "probe": 0.0,
         "stats": true,
         "pore": true,
+        "psd_method": "centers",
         "no_surface": true
       },
       "metrics": {
