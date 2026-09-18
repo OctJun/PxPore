@@ -6,6 +6,7 @@ from _test_env import configure_test_threads
 configure_test_threads()
 
 import numpy as np
+from numba import get_num_threads, set_num_threads
 from scipy.ndimage import label
 
 from PxPore.connectivity_multicore import (
@@ -56,6 +57,29 @@ def tiled_reference(void_mask, direction):
 
 
 class ConnectivityTests(unittest.TestCase):
+    def test_channels_across_slab_boundaries(self):
+        # 覆盖完整分块、末尾不完整分块，以及接缝处被封闭的通道。
+        available = get_num_threads()
+        try:
+            for threads in sorted({1, min(8, available)}):
+                set_num_threads(threads)
+                for gz in (31, 32, 33, 65):
+                    for closed in (False, True):
+                        void = np.zeros((5, 5, gz), dtype=np.uint8)
+                        void[2, 2, :] = 1
+                        if closed:
+                            void[2, 2, min(32, gz // 2)] = 0
+                        expected = void.astype(np.int8) * (1 if closed else 2)
+                        with self.subTest(threads=threads, gz=gz, closed=closed):
+                            observed, _ = percolation_masks(void)
+                            np.testing.assert_array_equal(observed, expected)
+                            observed, _ = percolation_masks_periodic(void, 'z')
+                            np.testing.assert_array_equal(observed, expected)
+                            observed, _ = percolation_masks_directional(void, 'z')
+                            np.testing.assert_array_equal(observed, expected)
+        finally:
+            set_num_threads(available)
+
     def test_periodic_voxel_truth_models(self):
         xy_open = np.zeros((7, 7, 7), dtype=np.uint8)
         xy_open[:, :, 3] = 1

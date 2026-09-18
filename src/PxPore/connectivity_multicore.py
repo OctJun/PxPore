@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit, prange,get_num_threads
+from numba import njit, prange
 
 INVALID = np.uint32(0xFFFFFFFF)
 
@@ -11,7 +11,8 @@ TZ0 = np.uint8(1 << 4)
 TZ1 = np.uint8(1 << 5)
 
 
-SLAB_Z = max(1, get_num_threads() // 2)
+# 固定分块厚度，保证不同线程环境及 JIT 缓存使用相同的接缝位置。
+SLAB_Z = 32
 
 LABEL_MASK_ACC = np.int8(2)
 LABEL_MASK_TRAP = np.int8(1)
