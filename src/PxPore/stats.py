@@ -45,6 +45,7 @@ def get_stats_and_envs(
         "psd_mc_samples": int(args.psd_mc_samples),
         "psd_mc_seed": int(args.psd_mc_seed),
         "psd_mc_search": str(args.psd_mc_search),
+        "psd_mc_grid": str(args.psd_mc_grid),
         "psd_mc_bin_size_nm": (
             None if args.psd_mc_bin_size is None
             else float(args.psd_mc_bin_size)

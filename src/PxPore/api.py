@@ -35,6 +35,7 @@ def analyse(
     psd_hist_weighting: str = "volume",
     psd_center_bin_size: float | None = None,
     psd_mc_search: str = "pyramid",
+    psd_mc_grid: str = "uniform",
 ):
     cfg = AnalyseConfig(
         input=input,
@@ -54,6 +55,7 @@ def analyse(
         psd_hist_weighting=psd_hist_weighting,
         psd_center_bin_size=psd_center_bin_size,
         psd_mc_search=psd_mc_search,
+        psd_mc_grid=psd_mc_grid,
         atoms=atoms,
         threads=threads,
         out_prefix=out_prefix,

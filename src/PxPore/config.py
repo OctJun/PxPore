@@ -45,3 +45,4 @@ class AnalyseConfig:
     psd_hist_weighting: str = "volume"
     psd_center_bin_size: Optional[float] = None
     psd_mc_search: str = "pyramid"
+    psd_mc_grid: str = "uniform"

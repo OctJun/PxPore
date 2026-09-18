@@ -24,6 +24,7 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.psd_mc_seed, 11451466)
         self.assertIsNone(cfg.psd_mc_bin_size)
         self.assertEqual(cfg.psd_mc_search, "pyramid")
+        self.assertEqual(cfg.psd_mc_grid, "uniform")
         self.assertIsNone(cfg.psd_center_bin_size)
         self.assertEqual(cfg.surface_samples, 1000)
         self.assertEqual(cfg.psd_local_max_mode, "strict")
@@ -43,6 +44,7 @@ class ConfigAndCliTests(unittest.TestCase):
             "--psd-mc-seed", "99",
             "--psd-mc-bin-size", "0.025",
             "--psd-mc-search", "offsets",
+            "--psd-mc-grid", "uniform",
             "--psd-center-bin-size", "0.03",
             "--psd-local-max-mode", "plateau",
             "--psd-min-center-radius", "0.02",
@@ -59,6 +61,7 @@ class ConfigAndCliTests(unittest.TestCase):
         self.assertEqual(cfg.psd_mc_seed, 99)
         self.assertEqual(cfg.psd_mc_bin_size, 0.025)
         self.assertEqual(cfg.psd_mc_search, "offsets")
+        self.assertEqual(cfg.psd_mc_grid, "uniform")
         self.assertEqual(cfg.psd_center_bin_size, 0.03)
         self.assertEqual(cfg.psd_local_max_mode, "plateau")
         self.assertEqual(cfg.psd_min_center_radius, 0.02)
@@ -75,7 +78,7 @@ class ConfigAndCliTests(unittest.TestCase):
             2,
         )
         names = list(inspect.signature(api_analyse).parameters)
-        self.assertEqual(names[-14:], [
+        self.assertEqual(names[-15:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -90,11 +93,12 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_hist_weighting",
             "psd_center_bin_size",
             "psd_mc_search",
+            "psd_mc_grid",
         ])
 
     def test_dataclass_parameters_are_appended(self):
         names = list(AnalyseConfig.__dataclass_fields__)
-        self.assertEqual(names[-14:], [
+        self.assertEqual(names[-15:], [
             "connectivity",
             "transport_direction",
             "psd_method",
@@ -109,6 +113,7 @@ class ConfigAndCliTests(unittest.TestCase):
             "psd_hist_weighting",
             "psd_center_bin_size",
             "psd_mc_search",
+            "psd_mc_grid",
         ])
 
     def test_invalid_new_values_fail_before_input(self):
@@ -118,6 +123,10 @@ class ConfigAndCliTests(unittest.TestCase):
             analyse("missing.gro", psd_method="mc", psd_mc_samples=0)
         with self.assertRaisesRegex(ValueError, "psd_mc_search"):
             analyse("missing.gro", psd_mc_search="invalid")
+        with self.assertRaisesRegex(ValueError, "psd_mc_grid"):
+            analyse("missing.gro", psd_mc_grid="invalid")
+        with self.assertRaisesRegex(ValueError, "requires octree"):
+            analyse("missing.gro", psd_mc_grid="octree", no_octree=True)
         with self.assertRaisesRegex(ValueError, "psd_mc_bin_size"):
             analyse("missing.gro", psd_mc_bin_size=0.0)
         with self.assertRaisesRegex(ValueError, "psd_center_bin_size"):

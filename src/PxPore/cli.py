@@ -56,6 +56,12 @@ def build_parser():
         default="pyramid",
         help="Monte Carlo containing-ball search implementation",
     )
+    ap.add_argument(
+        "--psd-mc-grid",
+        choices=("uniform", "octree"),
+        default="uniform",
+        help="Monte Carlo sampling grid",
+    )
     ap.add_argument("--psd-center-bin-size", type=float, default=None,
                     help="center PSD bin size in nm; default uses grid")
     ap.add_argument(
@@ -127,6 +133,7 @@ def namespace_to_config(args) -> AnalyseConfig:
         psd_mc_seed=args.psd_mc_seed,
         psd_mc_bin_size=args.psd_mc_bin_size,
         psd_mc_search=args.psd_mc_search,
+        psd_mc_grid=args.psd_mc_grid,
         psd_center_bin_size=args.psd_center_bin_size,
         psd_local_max_mode=args.psd_local_max_mode,
         psd_min_center_radius=args.psd_min_center_radius,

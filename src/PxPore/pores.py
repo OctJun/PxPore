@@ -10,6 +10,7 @@ from .connectivity_multicore import (
     percolation_masks_periodic,
 )
 from .geometry import pbc_delta
+from .octree import OCC_ACC
 
 MODE_NONE = 0
 MODE_CONTAINED = 1
@@ -503,7 +504,9 @@ def _distance_to_periodic_index_interval(q, lo, hi, period):
 
 @njit(parallel=True, cache=True)
 def _largest_containing_radii_from_pyramid(
-    sampled_flat,
+    sample_x,
+    sample_y,
+    sample_z,
     local_radii_nm,
     pyramid_data,
     level_offsets,
@@ -512,17 +515,14 @@ def _largest_containing_radii_from_pyramid(
 ):
     """使用层次上界精确查询包含每个样本的最大体素球。"""
     gx, gy, gz, dgx, dgy, dgz = grid_info
-    gyz = gy * gz
     n_levels = level_shapes.shape[0]
     stack_size = 8 * n_levels + 8
-    out = np.empty(sampled_flat.size, dtype=np.float32)
+    out = np.empty(sample_x.size, dtype=np.float32)
 
-    for i in prange(sampled_flat.size):
-        flat = sampled_flat[i]
-        ix = flat // gyz
-        rem = flat % gyz
-        iy = rem // gz
-        iz = rem % gz
+    for i in prange(sample_x.size):
+        ix = sample_x[i]
+        iy = sample_y[i]
+        iz = sample_z[i]
         best = local_radii_nm[i]
 
         stack_level = np.empty(stack_size, dtype=np.int16)
@@ -626,6 +626,162 @@ def _largest_containing_radii_from_pyramid(
     return out
 
 
+@njit(cache=True)
+def _octree_leaf_points_from_ranks(
+    x,
+    y,
+    z,
+    d,
+    child,
+    level,
+    occ,
+    target_level,
+    sorted_ranks,
+    dgx,
+    dgy,
+    dgz,
+):
+    """按排序后的序号抽取指定层级的可达 octree 叶中心。"""
+    count = sorted_ranks.size
+    sample_x = np.empty(count, dtype=np.float64)
+    sample_y = np.empty(count, dtype=np.float64)
+    sample_z = np.empty(count, dtype=np.float64)
+    local_radii = np.empty(count, dtype=np.float32)
+    if count == 0:
+        return sample_x, sample_y, sample_z, local_radii
+
+    valid_index = 0
+    rank_index = 0
+    for node_index in range(x.size):
+        if child[node_index] != -1:
+            continue
+        if level[node_index] != target_level:
+            continue
+        if (occ[node_index] & OCC_ACC) == 0 or d[node_index] <= 0.0:
+            continue
+        while (
+            rank_index < count
+            and sorted_ranks[rank_index] == valid_index
+        ):
+            sample_x[rank_index] = x[node_index] / dgx - 0.5
+            sample_y[rank_index] = y[node_index] / dgy - 0.5
+            sample_z[rank_index] = z[node_index] / dgz - 0.5
+            local_radii[rank_index] = d[node_index]
+            rank_index += 1
+        valid_index += 1
+        if rank_index == count:
+            break
+    return sample_x, sample_y, sample_z, local_radii
+
+
+def _sample_octree_grid_points(
+    dmin_nm,
+    acc_u8,
+    grid_mask,
+    oct_soa_tuple,
+    grid_info,
+    n_samples,
+    rng,
+):
+    """按自适应单元体积加权抽取粗网格或 octree 叶中心。"""
+    if grid_mask is None or oct_soa_tuple is None:
+        raise ValueError("octree MC grid requires grid_mask and octree data")
+
+    _, gy, gz, dgx, dgy, dgz = grid_info
+    coarse_valid = (
+        (acc_u8 != 0)
+        & ((grid_mask & np.uint8(128)) == 0)
+        & (dmin_nm > 0.0)
+    )
+    coarse_flat = np.flatnonzero(coarse_valid.ravel()).astype(
+        np.int32, copy=False
+    )
+
+    x, y, z, d, parent, child, level, occ = oct_soa_tuple
+    leaf_mask = (
+        (child == -1)
+        & ((occ & OCC_ACC) != 0)
+        & (d > 0.0)
+    )
+    max_level = int(level.max()) if level.size else -1
+
+    group_levels = [-1]
+    group_counts = [int(coarse_flat.size)]
+    group_masses = [float(coarse_flat.size)]
+    for current_level in range(max_level + 1):
+        count = int(np.count_nonzero(
+            leaf_mask & (level == current_level)
+        ))
+        if count == 0:
+            continue
+        group_levels.append(current_level)
+        group_counts.append(count)
+        group_masses.append(count / float(8 ** current_level))
+
+    total_mass = float(np.sum(group_masses))
+    if total_mass <= 0.0:
+        raise ValueError("octree MC grid has no accessible sampling cells")
+    probabilities = np.asarray(group_masses, dtype=np.float64) / total_mass
+    sampled_groups = rng.choice(
+        len(group_levels), size=n_samples, p=probabilities
+    )
+
+    sample_x = np.empty(n_samples, dtype=np.float64)
+    sample_y = np.empty(n_samples, dtype=np.float64)
+    sample_z = np.empty(n_samples, dtype=np.float64)
+    local_radii = np.empty(n_samples, dtype=np.float32)
+    write_index = 0
+
+    for group_index in range(len(group_levels)):
+        sample_count = int(np.count_nonzero(
+            sampled_groups == group_index
+        ))
+        if sample_count == 0:
+            continue
+        ranks = np.sort(rng.integers(
+            0, group_counts[group_index], size=sample_count
+        ))
+        current_level = group_levels[group_index]
+        if current_level == -1:
+            sampled_flat = coarse_flat[ranks]
+            ix = sampled_flat // (gy * gz)
+            rem = sampled_flat % (gy * gz)
+            iy = rem // gz
+            iz = rem % gz
+            next_index = write_index + sample_count
+            sample_x[write_index:next_index] = ix
+            sample_y[write_index:next_index] = iy
+            sample_z[write_index:next_index] = iz
+            local_radii[write_index:next_index] = dmin_nm.ravel()[
+                sampled_flat
+            ]
+        else:
+            leaf_x, leaf_y, leaf_z, leaf_radii = (
+                _octree_leaf_points_from_ranks(
+                    x,
+                    y,
+                    z,
+                    d,
+                    child,
+                    level,
+                    occ,
+                    current_level,
+                    ranks,
+                    dgx,
+                    dgy,
+                    dgz,
+                )
+            )
+            next_index = write_index + sample_count
+            sample_x[write_index:next_index] = leaf_x
+            sample_y[write_index:next_index] = leaf_y
+            sample_z[write_index:next_index] = leaf_z
+            local_radii[write_index:next_index] = leaf_radii
+        write_index = next_index
+
+    return sample_x, sample_y, sample_z, local_radii
+
+
 def get_psd_from_voxels_mc(
     dmin_nm,
     acc_u8,
@@ -634,23 +790,53 @@ def get_psd_from_voxels_mc(
     n_samples=50000,
     seed=11451466,
     search="pyramid",
+    mc_grid="uniform",
+    grid_mask=None,
+    oct_soa_tuple=None,
 ):
     """
-    从 accessible 体素中均匀抽样，并分配包含样本的最大体素球。
+    从均匀网格或 octree 自适应单元中抽样，并分配最大包含球。
     返回 PSD 数据和被更大包含球提升的样本比例。
     """
-    valid_flat = np.flatnonzero(acc_u8.ravel()).astype(
-        np.int32, copy=False)
     max_local_radius_nm = float(
         np.max(dmin_nm, where=acc_u8, initial=0.0))
 
     rng = np.random.default_rng(seed)
-    sampled_flat = valid_flat[
-        rng.integers(0, valid_flat.size, size=n_samples)
-    ]
-    sampled_flat.sort()
-    local_radii_nm = dmin_nm.ravel()[sampled_flat]
-    del valid_flat
+    if mc_grid == "uniform":
+        valid_flat = np.flatnonzero(acc_u8.ravel()).astype(
+            np.int32, copy=False)
+        sampled_flat = valid_flat[
+            rng.integers(0, valid_flat.size, size=n_samples)
+        ]
+        sampled_flat.sort()
+        sample_x, sample_y, sample_z = np.unravel_index(
+            sampled_flat, dmin_nm.shape
+        )
+        sample_x = np.asarray(sample_x, dtype=np.float64)
+        sample_y = np.asarray(sample_y, dtype=np.float64)
+        sample_z = np.asarray(sample_z, dtype=np.float64)
+        local_radii_nm = dmin_nm.ravel()[sampled_flat]
+        del valid_flat
+    elif mc_grid == "octree":
+        if search != "pyramid":
+            raise ValueError("octree MC grid requires pyramid search")
+        sample_x, sample_y, sample_z, local_radii_nm = (
+            _sample_octree_grid_points(
+                dmin_nm,
+                acc_u8,
+                grid_mask,
+                oct_soa_tuple,
+                grid_info,
+                n_samples,
+                rng,
+            )
+        )
+        max_local_radius_nm = max(
+            max_local_radius_nm,
+            float(np.max(local_radii_nm, initial=0.0)),
+        )
+    else:
+        raise ValueError("mc_grid must be one of: uniform, octree")
 
     if search == "offsets":
         _, _, _, dgx, dgy, dgz = grid_info
@@ -692,7 +878,9 @@ def get_psd_from_voxels_mc(
             _build_max_radius_pyramid(dmin_nm, acc_u8)
         )
         assigned_radii_nm = _largest_containing_radii_from_pyramid(
-            sampled_flat,
+            sample_x,
+            sample_y,
+            sample_z,
             local_radii_nm,
             pyramid_data,
             level_offsets,
@@ -706,9 +894,13 @@ def get_psd_from_voxels_mc(
         np.mean(assigned_radii_nm > local_radii_nm + 1e-7))
 
     max_diameter_nm = 2.0 * max_local_radius_nm
-    n_bins = max(1, int(np.ceil(max_diameter_nm / bin_size)))
+    n_hist_bins = max(1, int(np.ceil(max_diameter_nm / bin_size)))
+    hist_edges = np.arange(n_hist_bins + 1, dtype=np.float64) * bin_size
+    hist, _ = np.histogram(sampled_diameters_nm, bins=hist_edges)
+    # 先按原边界分箱，再在 LCD 上方补零，避免边界样本改变所属箱。
+    hist = np.append(hist, 0)
+    n_bins = n_hist_bins + 1
     bin_edges = np.arange(n_bins + 1, dtype=np.float64) * bin_size
-    hist, _ = np.histogram(sampled_diameters_nm, bins=bin_edges)
     probability = hist.astype(np.float64) / float(n_samples)
     density = probability / bin_size
     next_probability = np.append(probability[1:], 0.0)

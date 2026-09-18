@@ -7,6 +7,7 @@ configure_test_threads()
 import numpy as np
 
 from PxPore.pores import (
+    _sample_octree_grid_points,
     get_poreblazer_psd_outputs,
     get_psd_from_centerline,
     get_psd_from_voxels_mc,
@@ -14,6 +15,35 @@ from PxPore.pores import (
 
 
 class PsdTests(unittest.TestCase):
+    def test_octree_mc_sampling_uses_leaf_volume_weights(self):
+        shape = (2, 1, 1)
+        dmin = np.full(shape, 0.2, dtype=np.float32)
+        accessible = np.ones(shape, dtype=np.uint8)
+        grid_mask = np.zeros(shape, dtype=np.uint8)
+        grid_mask[0, 0, 0] = 128
+        octree = (
+            np.array([0.025], dtype=np.float32),
+            np.array([0.05], dtype=np.float32),
+            np.array([0.05], dtype=np.float32),
+            np.array([0.02], dtype=np.float32),
+            np.array([-1], dtype=np.int32),
+            np.array([-1], dtype=np.int32),
+            np.array([1], dtype=np.uint8),
+            np.array([5], dtype=np.uint8),
+        )
+        sample_x, _, _, radii = _sample_octree_grid_points(
+            dmin,
+            accessible,
+            grid_mask,
+            octree,
+            (*shape, 0.1, 0.1, 0.1),
+            20000,
+            np.random.default_rng(20260916),
+        )
+        leaf_fraction = np.mean(sample_x < 0.5)
+        self.assertAlmostEqual(leaf_fraction, 1.0 / 9.0, delta=0.01)
+        self.assertTrue(np.all(radii > 0.0))
+
     def test_center_psd_is_sorted_and_normalized(self):
         nodes = np.array([
             [0.1, 0.1, 0.1],
@@ -114,12 +144,18 @@ class PsdTests(unittest.TestCase):
             contains = np.sum(delta * delta, axis=1) <= center_radii**2
             assigned[i] = np.max(center_radii[contains])
 
-        n_bins = int(np.ceil((2.0 * center_radii.max()) / bin_size))
+        n_hist_bins = int(np.ceil(
+            (2.0 * center_radii.max()) / bin_size))
         expected_hist, _ = np.histogram(
             2.0 * assigned,
-            bins=np.arange(n_bins + 1) * bin_size,
+            bins=np.arange(n_hist_bins + 1) * bin_size,
         )
+        # 最后一箱是 LCD 上方用于闭合 PSD 曲线的空箱。
+        expected_hist = np.append(expected_hist, 0)
         np.testing.assert_array_equal(data[:, 2], expected_hist)
+        np.testing.assert_array_equal(data[-1, 2:6], 0.0)
+        self.assertAlmostEqual(data[-1, 6], 1.0)
+        self.assertEqual(int(np.sum(data[:, 2])), n_samples)
         expected_promoted = np.mean(
             assigned > dmin.ravel()[sampled_flat] + 1e-7
         )
