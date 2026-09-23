@@ -18,30 +18,15 @@ and pore-size descriptors.
 
 ## Requirements
 
-- Python 3.10 or newer
-- NumPy
-- SciPy
-- Numba
-
-Create a virtual environment and install the dependencies:
+Python 3.10 or newer. The source version is `1.1.0`; `pyproject.toml` defines
+runtime dependencies and version constraints (NumPy, SciPy, Numba, llvmlite,
+pandas, psutil, and scikit-learn). Install the package and its dependencies
+from the repository root:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install numpy scipy numba
-```
-
-If a `requirements.txt` file is provided with your copy of the project, you can
-install from it instead:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-For local development, the project can also be installed in editable mode:
-
-```bash
 python -m pip install -e .
 ```
 
@@ -59,7 +44,9 @@ PxPore can be run directly from the source tree. From the repository root:
 
 ```bash
 export PYTHONPATH="$PWD/src:$PYTHONPATH"
-python -m PxPore tests/data/single_H.gro \
+mkdir -p docs/example_run
+cp tests/data/single_H.gro docs/example_run/input.gro
+python -m PxPore docs/example_run/input.gro \
   --grid 0.02 \
   --probe 0.0 \
   --threads 8 \
@@ -125,6 +112,9 @@ result = analyse(
   and `.cif` for orthogonal simulation cells.
 - `--grid`, `-g`: target grid spacing in nm; default is `0.01`.
 - `--probe`, `-p`: probe radius in nm; default is `0.0`.
+- `--connectivity`: `legacy` (default, nonperiodic boundaries) or `periodic`
+  (periodic winding criterion).
+- `--transport-direction`: accessibility direction, `any` (default), `x`, `y`, or `z`.
 - `--atoms`: atom parameter file used to override default radii and masses.
   Expected format: `symbol Z mass(g/mol) LJsigma(nm) epsilon(K)`.
 - `--threads`: number of Numba threads; `0` uses half of available threads.
@@ -133,10 +123,20 @@ result = analyse(
 - `--surface-samples`: Fibonacci surface samples per atom; default is `1000`.
 - `--pore`: enable pore analysis.
 - `--porevis`: write pore-visualization output.
-- `--psd-method`: PSD method, `centers` (default), `mc`, or `both`.
+- `--psd-method`: PSD method, `mc` (default), `centers`, or `both`.
 - `--psd-mc-samples`: Monte Carlo PSD sample count; default is `50000`.
 - `--psd-mc-seed`: Monte Carlo PSD random seed; default is `11451466`.
 - `--psd-mc-bin-size`: Monte Carlo PSD bin size in nm; default uses `--grid`.
+- `--psd-mc-search`: largest-containing-ball search, `pyramid` (default) or
+  `offsets` (the original search implementation).
+- `--psd-mc-grid`: MC sampling grid, `uniform` (default) or `octree`.
+  `octree` requires octree refinement and `pyramid` search.
+- `--psd-center-bin-size`: center PSD bin size in nm; defaults to `--grid`.
+- `--psd-local-max-mode`: center local-maximum criterion, `strict` (default) or `plateau`.
+- `--psd-min-center-radius`: minimum center-ball radius; default `0.005` nm.
+- `--no-psd-overlap-prune`: disable center-ball overlap pruning (enabled by default).
+- `--psd-overlap-threshold`: center-ball overlap pruning factor; default `1.0`.
+- `--psd-hist-weighting`: center histogram weighting, `volume` (default) or `number`.
 - `--no-octree`: disable octree refinement.
 - `--oct-level`: maximum octree refinement level; default is `2`.
 - `--oct-grid`: minimum octree leaf size in nm; default is `0.001`.
@@ -147,14 +147,39 @@ result = analyse(
 - `--debug`: save intermediate arrays.
 - `--debug-print`: print extra debug information.
 
-## Outputs
+## PSD and outputs
 
-Depending on the selected options, PxPore writes:
+Pore calculations require `--pore`; setting PSD options alone does not enable
+them. Default MC sampling uses accessible uniform-grid voxels and searches for
+the largest ball containing each sample. Octree refinement remains enabled for
+volume/connectivity analysis: `--psd-mc-grid uniform` does not mean `--no-octree`.
+Octree connectivity supports periodic boundaries and directional accessibility.
+Center coordinates and center PSD require `--psd-method centers` or `both`.
 
-- statistics JSON files containing geometric and pore descriptors;
-- optional cube files for volumetric fields;
-- optional pore-visualization outputs;
-- optional diagnostic arrays for verification.
+Outputs are written beside the input file. The default prefix is
+`<input_filename>_g_<grid>_p_<probe>`; `--out_prefix` changes the filename prefix.
+The source example above stages its input under `docs/example_run/`.
+
+| File suffix | Required options | Contents and units |
+|---|---|---|
+| `_stats.json` | `--stats` | Statistics, settings, and runtime environment |
+| `_voxel_mc_psd.txt` | `--pore --stats`, MC/both | Seven columns: index, diameter nm, count, probability, density nm⁻¹, PB central-difference density nm⁻¹, cumulative probability |
+| `_Network-accessible_psd.txt` | Same | PB-format diameter Å and differential density Å⁻¹ |
+| `_Network-accessible_psd_cumulative.txt` | Same | Probe diameter Å and remaining accessible volume fraction, decreasing with diameter |
+| `_psd.txt` | `--pore --stats`, centers/both | Center PSD: index, diameter nm, count, weighted fraction, cumulative fraction |
+| `_center.txt` | Same | Extended XYZ; coordinates in Å, ball diameter in nm |
+| `*.cube` | `--cube` | Void, occupied, accessible, trapped, and distance fields |
+| `_porevis.cube` | `--cube --pore --porevis`, centers/both | Center-ball visualization |
+| `*.npy` / `*.npz` | `--debug` | Intermediate arrays |
+
+PB-format files convert the PxPore MC results; they do not run PoreBlazer.
+Default `mc` produces no center balls; use `both` for center-ball visualization.
+The Python API returns statistics, configuration, grid, timing, and output-path
+information; numeric metrics are in `result["stats"]["stats"]`. With no accessible
+pores, PLD/LCD are `-1` and the main PSD tables are empty.
+
+See [docs/reproducibility.md](docs/reproducibility.md) for the release materials
+and their relationship to the current source.
 
 ## Sensitivity study
 

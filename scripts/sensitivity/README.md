@@ -66,8 +66,9 @@ single-H 文件只使用
 或修改这些数据文件。
 
 各向异性体系的 grid、surface 和 PSD 扫描使用 periodic through-plane
-连通性。当前 octree 连通性不支持 periodic directional，因此各向异性
-octree 扫描固定使用 legacy/any，仅汇总 Vvoid、Vprobe 和 Stotal。较大
+连通性。当前源码的 octree 连通性已支持 periodic directional；本工作流保留原有研究设计，
+各向异性 octree 扫描仍固定使用 legacy/any，仅汇总 Vvoid、Vprobe 和 Stotal。
+这是 `run_parameter_sensitivity.py` 的扫描配置，不是当前算法的能力限制。较大
 体系的 octree 深度上限和固定网格根据节点规模收紧，避免无物理收益的
 数亿节点任务。
 
