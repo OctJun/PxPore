@@ -1,8 +1,7 @@
 # Supplementary R4 benchmark inputs
 
 These two files complete the five-structure performance benchmark inputs.
-They were added as documentation assets without changing source code or
-existing experimental data. Both are byte-identical to the actual inputs
+Both are byte-identical to the inputs
 used in `performance_benchmark_v11_candidate_20260918` (all three repeats).
 
 | File | Benchmark case | Size | Original workspace path, relative to tmp_work_zone |
@@ -24,5 +23,5 @@ Verify these supplementary inputs from this directory:
 sha256sum -c MANIFEST.sha256
 ```
 
-The results-only release archive intentionally continues to exclude structures.
-These files must be included in the Git revision used for the release.
+The structure files are supplied here; the results-only archive contains the
+corresponding numerical outputs.
